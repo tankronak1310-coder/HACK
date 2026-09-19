@@ -2,84 +2,373 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   CSS CUSTOM PROPERTIES — Dark is default, Light is opt-in
+   ============================================================ */
+:root,
+.dark {
+  --bg-base:        #07090F;
+  --bg-card:        #0E1120;
+  --bg-hover:       #141829;
+  --bg-active:      #1A2035;
+  --bg-subtle:      #111422;
+  --border-default: #1E2640;
+  --border-subtle:  #181E32;
+  --border-hi:      #2E3A5C;
+  --text-primary:   #E8EAF0;
+  --text-secondary: #8892B0;
+  --text-muted:     #4A5578;
+  --sb-track: #0E1120;
+  --sb-thumb: #1E2640;
+  --sb-hover: #2E3A5C;
+  --nav-bg:     rgba(10,13,26,0.97);
+  --nav-border: #1E2640;
+  --card-shadow: 0 2px 12px rgba(0,0,0,0.4);
+  --card-hover-shadow: 0 8px 32px rgba(99,102,241,0.12), 0 2px 8px rgba(0,0,0,0.5);
+  --sidebar-bg: #0A0D1A;
+  --sidebar-active-bg: rgba(99,102,241,0.15);
+  --sidebar-active-border: rgba(99,102,241,0.35);
+  --sidebar-active-text: #818CF8;
+}
+
+.light {
+  --bg-base:        #FFFFFF;
+  --bg-card:        #FFFFFF;
+  --bg-hover:       #F5F3FF;
+  --bg-active:      #EDE9FE;
+  --bg-subtle:      #F8F7FF;
+  --border-default: #E2DCFF;
+  --border-subtle:  #EDE9FE;
+  --border-hi:      #C4B5FD;
+  --text-primary:   #1E1B4B;
+  --text-secondary: #4C4699;
+  --text-muted:     #7C74C9;
+  --sb-track: #EDE9FE;
+  --sb-thumb: #C4B5FD;
+  --sb-hover: #A78BFA;
+  --nav-bg:     rgba(255,255,255,0.97);
+  --nav-border: #E2DCFF;
+  --card-shadow:       0 2px 14px 0 rgba(99,102,241,0.09), 0 1px 3px 0 rgba(0,0,0,0.04);
+  --card-hover-shadow: 0 10px 32px 0 rgba(99,102,241,0.18);
+  --sidebar-bg: linear-gradient(180deg,#FFFFFF 0%,#F8F7FF 100%);
+  --sidebar-active-bg: rgba(99,102,241,0.08);
+  --sidebar-active-border: rgba(99,102,241,0.25);
+  --sidebar-active-text: #4F46E5;
+}
+
+/* ============================================================
+   BASE
+   ============================================================ */
 @layer base {
-  :root {
-    --background: 224 71% 4%;
-    --foreground: 210 40% 98%;
-  }
-
+  html { scroll-behavior: smooth; }
   body {
-    background-color: #070A10;
-    color: #F8FAFC;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    font-family: 'Outfit','Inter',system-ui,sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.3s ease, color 0.2s ease;
+  }
+  h1,h2,h3,h4,h5,h6 {
+    font-family: 'Outfit',sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  *,*::before,*::after {
+    transition-property: background-color, border-color, color, box-shadow, opacity;
+    transition-duration: 0.18s;
+    transition-timing-function: ease;
+  }
+  .transition-transform,[class*="animate-"],.animate-spin,.animate-bounce,.animate-pulse {
+    transition-property: transform,opacity !important;
   }
 }
 
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+/* ============================================================
+   SCROLLBAR
+   ============================================================ */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--sb-track); }
+::-webkit-scrollbar-thumb { background: var(--sb-thumb); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--sb-hover); }
+
+/* ============================================================
+   COMPONENTS
+   ============================================================ */
+@layer components {
+
+  /* Nav */
+  .nav-surface {
+    background: var(--nav-bg);
+    border-color: var(--nav-border) !important;
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+  }
+  .sidebar-surface {
+    background: var(--sidebar-bg);
+    border-color: var(--nav-border) !important;
+  }
+
+  /* Cards */
+  .card-base {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-default);
+    border-radius: 1rem;
+    box-shadow: var(--card-shadow);
+    transition: box-shadow 0.25s, border-color 0.25s, transform 0.2s;
+  }
+  .card-base:hover { box-shadow: var(--card-hover-shadow); border-color: var(--border-hi); transform: translateY(-1px); }
+
+  .card-themed {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-default);
+    border-radius: 1.25rem;
+    box-shadow: var(--card-shadow);
+    transition: box-shadow 0.25s, border-color 0.25s, transform 0.2s;
+  }
+  .card-themed:hover { box-shadow: var(--card-hover-shadow); border-color: var(--border-hi); transform: translateY(-2px); }
+
+  /* Glass */
+  .glass-panel {
+    background: var(--nav-bg);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--border-default);
+  }
+  .glass-panel-glow {
+    background: var(--nav-bg);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(99,102,241,0.3);
+    box-shadow: 0 0 30px -8px rgba(99,102,241,0.18);
+  }
+  .glass-panel-danger {
+    background: var(--bg-card);
+    border: 1px solid rgba(244,63,94,0.35);
+    box-shadow: 0 0 20px -8px rgba(244,63,94,0.15);
+  }
+
+  /* Input */
+  .input-theme {
+    background-color: var(--bg-subtle);
+    border: 1.5px solid var(--border-default);
+    color: var(--text-primary);
+    border-radius: 0.75rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .input-theme::placeholder { color: var(--text-muted); }
+  .input-theme:focus { border-color: #6366F1; box-shadow: 0 0 0 3px rgba(99,102,241,0.15); outline: none; }
+
+  /* KPI Cards */
+  .kpi-card {
+    padding: 1.25rem;
+    border-radius: 1rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-default);
+    box-shadow: var(--card-shadow);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: box-shadow 0.25s, border-color 0.25s, transform 0.2s;
+  }
+  .kpi-card:hover { box-shadow: var(--card-hover-shadow); transform: translateY(-2px); }
+  .kpi-value {
+    font-family: 'Outfit',sans-serif;
+    font-size: 1.75rem;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    line-height: 1;
+  }
+  .kpi-label {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    font-family: 'Inter',sans-serif;
+  }
+
+  /* Gradient text */
+  .text-gradient {
+    background: linear-gradient(135deg,#818CF8,#A78BFA,#67E8F9);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .text-gradient-warm {
+    background: linear-gradient(135deg,#F59E0B,#EC4899);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Buttons */
+  .btn-primary {
+    display: inline-flex; align-items: center; justify-content: center; gap: 0.375rem;
+    padding: 0.5rem 1.125rem; border-radius: 0.75rem;
+    background: linear-gradient(135deg,#6366F1,#4F46E5);
+    color: #fff; font-family: 'Outfit',sans-serif; font-size: 0.75rem; font-weight: 700;
+    box-shadow: 0 4px 14px rgba(99,102,241,0.4);
+    transition: all 0.2s; border: none;
+  }
+  .btn-primary:hover { background: linear-gradient(135deg,#4F46E5,#4338CA); box-shadow: 0 6px 20px rgba(99,102,241,0.55); transform: translateY(-1px); }
+  .btn-primary:disabled { opacity: 0.5; pointer-events: none; }
+
+  .btn-ghost {
+    display: inline-flex; align-items: center; justify-content: center; gap: 0.375rem;
+    padding: 0.5rem 1rem; border-radius: 0.75rem;
+    background: transparent; border: 1.5px solid var(--border-default);
+    color: var(--text-secondary); font-size: 0.75rem; font-weight: 600;
+    transition: all 0.2s;
+  }
+  .btn-ghost:hover { border-color: var(--border-hi); background: var(--bg-hover); color: var(--text-primary); }
+
+  /* Badges */
+  .badge {
+    display: inline-flex; align-items: center;
+    padding: 0.18rem 0.55rem; border-radius: 9999px;
+    font-size: 0.62rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+    font-family: 'JetBrains Mono',monospace; border: 1px solid transparent;
+  }
+  /* Dark mode badges */
+  .badge-primary { background: rgba(99,102,241,0.15);  color: #A78BFA; border-color: rgba(99,102,241,0.3); }
+  .badge-success { background: rgba(16,185,129,0.15);  color: #6EE7B7; border-color: rgba(16,185,129,0.3); }
+  .badge-warning { background: rgba(245,158,11,0.15);  color: #FCD34D; border-color: rgba(245,158,11,0.3); }
+  .badge-danger  { background: rgba(244,63,94,0.15);   color: #FDA4AF; border-color: rgba(244,63,94,0.3); }
+  .badge-info    { background: rgba(6,182,212,0.15);   color: #67E8F9; border-color: rgba(6,182,212,0.3); }
+  .badge-amber   { background: rgba(251,146,60,0.15);  color: #FDBA74; border-color: rgba(251,146,60,0.3); }
+  /* Light mode badge overrides */
+  .light .badge-primary { background:#EDE9FE; color:#5B21B6; border-color:#C4B5FD; }
+  .light .badge-success { background:#ECFDF5; color:#065F46; border-color:#A7F3D0; }
+  .light .badge-warning { background:#FFFBEB; color:#92400E; border-color:#FDE68A; }
+  .light .badge-danger  { background:#FFF1F2; color:#9F1239; border-color:#FECDD3; }
+  .light .badge-info    { background:#ECFEFF; color:#164E63; border-color:#A5F3FC; }
+
+  /* Progress */
+  .progress-track { height:6px; border-radius:9999px; background:var(--border-default); overflow:hidden; }
+  .progress-fill  { height:100%; border-radius:9999px; background:linear-gradient(90deg,#6366F1,#A78BFA); transition:width 0.8s cubic-bezier(0.4,0,0.2,1); }
+  .progress-fill-success { background:linear-gradient(90deg,#10B981,#06B6D4); }
+  .progress-fill-warning { background:linear-gradient(90deg,#F59E0B,#EC4899); }
+  .progress-fill-danger  { background:linear-gradient(90deg,#F43F5E,#F59E0B); }
+
+  /* Shimmer */
+  .skeleton {
+    background:linear-gradient(90deg,var(--bg-hover) 25%,var(--bg-active) 50%,var(--bg-hover) 75%);
+    background-size:200% 100%;
+    animation:shimmer 1.6s infinite;
+    border-radius:0.5rem;
+  }
+  @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
 }
 
-::-webkit-scrollbar-track {
-  background: #0B101D;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #1E293B;
-  border-radius: 9999px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #334155;
-}
-
-/* Glassmorphism card utilities */
-.glass-panel {
-  background: rgba(13, 18, 29, 0.7);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.glass-panel-glow {
-  background: rgba(15, 22, 38, 0.75);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(99, 102, 241, 0.2);
-  box-shadow: 0 0 30px -10px rgba(99, 102, 241, 0.2);
-}
-
-.glass-panel-danger {
-  background: rgba(26, 15, 20, 0.85);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(244, 63, 94, 0.3);
-  box-shadow: 0 0 30px -10px rgba(244, 63, 94, 0.25);
-}
-
-/* Glowing dot indicator */
+/* ============================================================
+   LIVE PULSE
+   ============================================================ */
 .live-pulse {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #10B981;
-  box-shadow: 0 0 0 rgba(16, 185, 129, 0.4);
-  animation: pulse-green 2s infinite;
+  display:inline-block; width:8px; height:8px; border-radius:50%;
+  background:#10B981; flex-shrink:0; animation:pulse-green 2s infinite;
+}
+@keyframes pulse-green {
+  0%   { transform:scale(0.95); box-shadow:0 0 0 0   rgba(16,185,129,0.8); }
+  70%  { transform:scale(1);    box-shadow:0 0 0 8px rgba(16,185,129,0); }
+  100% { transform:scale(0.95); box-shadow:0 0 0 0   rgba(16,185,129,0); }
 }
 
-@keyframes pulse-green {
-  0% {
-    transform: scale(0.95);
-    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
-  }
-  70% {
-    transform: scale(1);
-    box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
-  }
-  100% {
-    transform: scale(0.95);
-    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
-  }
+/* ============================================================
+   LIGHT MODE overrides for hardcoded Tailwind classes
+   ============================================================ */
+.light .text-white    { color: var(--text-primary) !important; }
+.light .text-slate-200 { color:#312E81 !important; }
+.light .text-slate-300 { color:#4C4699 !important; }
+.light .text-slate-400 { color:#6D64C8 !important; }
+.light .text-slate-500 { color:#8B82D4 !important; }
+.light input,.light select,.light textarea {
+  background-color:var(--bg-subtle)!important;
+  border-color:var(--border-default)!important;
+  color:var(--text-primary)!important;
 }
+.light input::placeholder { color:var(--text-muted)!important; }
+.light kbd { background:var(--bg-subtle)!important; border-color:var(--border-hi)!important; color:var(--text-secondary)!important; }
+.light tbody tr:hover { background-color:var(--bg-hover)!important; }
+
+/* ============================================================
+   FOCUS RING
+   ============================================================ */
+:focus-visible { outline:2px solid #6366F1; outline-offset:2px; border-radius:4px; }
+
+/* ============================================================
+   REACT FLOW — override XY Flow CSS variables for dark theme
+   These are the actual variables ReactFlow v12 reads internally
+   ============================================================ */
+
+/* Override on the canvas wrapper */
+.digital-twin-canvas {
+  --xy-background-color-default:               #07090F;
+  --xy-background-pattern-dots-color-default:  #1E2640;
+  --xy-background-pattern-lines-color-default: #1E2640;
+  --xy-node-background-color-default:          #0E1120;
+  --xy-node-border-default:                    1px solid #1E2640;
+  --xy-controls-button-background-color-default:       #0E1120;
+  --xy-controls-button-background-color-hover-default: #141829;
+  --xy-controls-button-color-default:          #8892B0;
+  --xy-controls-button-color-hover-default:    #E8EAF0;
+  --xy-controls-button-border-color-default:   #1E2640;
+  --xy-minimap-background-color-default:       #0E1120;
+  --xy-minimap-mask-background-color-default:  rgba(7,9,15,0.75);
+  --xy-attribution-background-color-default:   rgba(7,9,15,0.6);
+  --xy-edge-label-background-color-default:    #0E1120;
+  --xy-selection-background-color-default:     rgba(99,102,241,0.08);
+  --xy-handle-background-color-default:        #6366F1;
+}
+
+/* Explicit background overrides as backup */
+.digital-twin-canvas .react-flow__background,
+.digital-twin-canvas .react-flow,
+.digital-twin-canvas .react-flow__pane,
+.digital-twin-canvas .react-flow__renderer,
+.digital-twin-canvas .react-flow__container { background-color: #07090F !important; }
+
+.digital-twin-canvas .react-flow__background pattern circle { fill: #1E2640 !important; }
+.digital-twin-canvas .react-flow__background pattern rect   { fill: #1E2640 !important; }
+
+.digital-twin-canvas .react-flow__controls {
+  background: #0E1120 !important;
+  border: 1px solid #1E2640 !important;
+  border-radius: 10px !important;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important;
+}
+.digital-twin-canvas .react-flow__controls-button {
+  background: #0E1120 !important;
+  border-bottom: 1px solid #1E2640 !important;
+}
+.digital-twin-canvas .react-flow__controls-button svg { fill: #8892B0 !important; }
+.digital-twin-canvas .react-flow__controls-button:hover { background: #141829 !important; }
+.digital-twin-canvas .react-flow__controls-button:hover svg { fill: #E8EAF0 !important; }
+
+.digital-twin-canvas .react-flow__minimap {
+  background: #0E1120 !important;
+  border: 1px solid #1E2640 !important;
+  border-radius: 10px !important;
+  overflow: hidden;
+}
+.digital-twin-canvas .react-flow__minimap svg { background: #0E1120 !important; }
+.digital-twin-canvas .react-flow__minimap-mask { fill: rgba(7,9,15,0.8) !important; }
+.digital-twin-canvas .react-flow__attribution { background: rgba(7,9,15,0.6) !important; }
+.digital-twin-canvas .react-flow__attribution a { color: #4A5578 !important; }
+
+/* Light mode — restore defaults */
+.light .digital-twin-canvas {
+  --xy-background-color-default:               #FFFFFF;
+  --xy-background-pattern-dots-color-default:  #C4B5FD;
+  --xy-node-background-color-default:          #fff;
+  --xy-controls-button-background-color-default:       #fff;
+  --xy-controls-button-background-color-hover-default: #F5F3FF;
+  --xy-minimap-background-color-default:       #fff;
+}
+.light .digital-twin-canvas .react-flow__background,
+.light .digital-twin-canvas .react-flow,
+.light .digital-twin-canvas .react-flow__pane { background-color: #FFFFFF !important; }
+.light .digital-twin-canvas .react-flow__background pattern circle { fill: #C4B5FD !important; }
+.light .digital-twin-canvas .react-flow__controls { background: #fff !important; border-color: #E2DCFF !important; }
+.light .digital-twin-canvas .react-flow__controls-button { background: #fff !important; }
+.light .digital-twin-canvas .react-flow__controls-button svg { fill: #7C74C9 !important; }
+.light .digital-twin-canvas .react-flow__minimap { background: #fff !important; border-color: #E2DCFF !important; }

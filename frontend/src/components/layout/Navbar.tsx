@@ -1,16 +1,10 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext.js';
 import { useEvent } from '../../context/EventContext.js';
-import { 
-  Sparkles, 
-  Search, 
-  Bell, 
-  ShieldAlert, 
-  ChevronDown, 
-  LogOut, 
-  User as UserIcon,
-  Activity,
-  Layers
+import { useTheme } from '../../context/ThemeContext.js';
+import {
+  Sparkles, Search, Bell, ShieldAlert, ChevronDown,
+  LogOut, User as UserIcon, Activity, Layers, Sun, Moon, Settings
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -20,79 +14,77 @@ interface NavbarProps {
   unreadCount: number;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ 
-  onOpenCommandPalette, 
-  onOpenNotifications, 
-  unreadCount 
-}) => {
+export const Navbar: React.FC<NavbarProps> = ({ onOpenCommandPalette, onOpenNotifications, unreadCount }) => {
   const { user, logout } = useAuth();
   const { currentEvent, events, setCurrentEvent, healthScore } = useEvent();
+  const { toggleTheme, isDark } = useTheme();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const navigate = useNavigate();
 
-  const getHealthColor = (score: number) => {
-    if (score >= 80) return 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10';
-    if (score >= 60) return 'text-amber-400 border-amber-500/30 bg-amber-500/10';
-    return 'text-rose-400 border-rose-500/30 bg-rose-500/10';
+  const healthBadgeStyle = () => {
+    if (healthScore >= 80) return { color: '#34D399', border: 'rgba(52,211,153,0.25)', bg: 'rgba(52,211,153,0.08)' };
+    if (healthScore >= 60) return { color: '#FBBF24', border: 'rgba(251,191,36,0.25)', bg: 'rgba(251,191,36,0.08)' };
+    return { color: '#F87171', border: 'rgba(248,113,113,0.25)', bg: 'rgba(248,113,113,0.08)' };
   };
+  const hStyle = healthBadgeStyle();
 
   return (
-    <header className="h-16 border-b border-border bg-background-card/80 backdrop-blur-md sticky top-0 z-40 px-4 md:px-6 flex items-center justify-between">
-      {/* Brand & Event Selector */}
-      <div className="flex items-center space-x-6">
-        <div 
-          onClick={() => navigate('/mission-control')}
-          className="flex items-center space-x-2.5 cursor-pointer group"
-        >
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-primary-600 via-primary-500 to-accent-cyan p-0.5 shadow-glow flex items-center justify-center">
-            <div className="w-full h-full bg-background rounded-[10px] flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-accent-cyan group-hover:rotate-12 transition-transform duration-300" />
-            </div>
+    <header className="h-14 nav-surface sticky top-0 z-40 px-4 md:px-5 flex items-center justify-between"
+      style={{ borderBottom: '1px solid var(--nav-border)' }}>
+
+      {/* LEFT: Brand + Event Selector */}
+      <div className="flex items-center space-x-3">
+        {/* Logo */}
+        <div onClick={() => navigate('/mission-control')}
+          className="flex items-center space-x-2 cursor-pointer group flex-shrink-0">
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+            style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}>
+            <Sparkles className="w-4 h-4 text-white group-hover:rotate-12 transition-transform duration-300" />
           </div>
-          <div className="hidden sm:block">
-            <div className="flex items-center space-x-1.5">
-              <span className="font-bold text-base tracking-tight text-white">CLUBOPS</span>
-              <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-primary-500/20 text-primary-400 border border-primary-500/30">AI</span>
-            </div>
+          <div className="hidden sm:flex items-center space-x-1.5">
+            <span className="font-heading font-black text-sm tracking-tight" style={{ color: 'var(--text-primary)' }}>
+              CLUBOPS
+            </span>
+            <span className="text-2xs font-bold px-1.5 py-0.5 rounded-md font-mono"
+              style={{ background: 'rgba(99,102,241,0.15)', color: '#818CF8', border: '1px solid rgba(99,102,241,0.3)' }}>
+              AI
+            </span>
           </div>
         </div>
 
-        {/* Active Event Selector */}
+        {/* Event Selector */}
         {currentEvent && (
           <div className="relative">
-            <button
-              onClick={() => setDropdownOpen(!dropdownOpen)}
-              className="flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-background-subtle border border-border hover:border-border-highlight text-sm text-slate-200 transition-colors"
-            >
-              <Layers className="w-4 h-4 text-primary-400" />
-              <span className="font-medium max-w-[150px] truncate">{currentEvent.name}</span>
-              <span className="text-xs px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-mono">
+            <button onClick={() => setDropdownOpen(!dropdownOpen)}
+              className="flex items-center space-x-2 px-2.5 py-1.5 rounded-lg transition-all"
+              style={{
+                background: 'var(--bg-subtle)',
+                border: '1px solid var(--border-default)',
+                color: 'var(--text-primary)',
+              }}>
+              <Layers className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#818CF8' }} />
+              <span className="text-xs font-semibold max-w-[110px] truncate">{currentEvent.name}</span>
+              <span className="text-2xs font-bold px-1.5 py-0.5 rounded font-mono"
+                style={{ background: 'rgba(99,102,241,0.15)', color: '#818CF8' }}>
                 {currentEvent.status}
               </span>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+              <ChevronDown className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--text-muted)' }} />
             </button>
-
             {dropdownOpen && (
-              <div className="absolute left-0 mt-2 w-64 rounded-xl bg-background-card border border-border shadow-glass p-2 z-50 animate-scale-in">
-                <div className="text-xs font-semibold text-slate-400 px-2.5 py-1 uppercase tracking-wider">
-                  Switch Event
-                </div>
-                {events.map((ev) => (
-                  <button
-                    key={ev.id}
-                    onClick={() => {
-                      setCurrentEvent(ev);
-                      setDropdownOpen(false);
-                    }}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-between ${
-                      ev.id === currentEvent.id
-                        ? 'bg-primary-600/20 text-primary-300 font-medium'
-                        : 'text-slate-300 hover:bg-background-hover'
-                    }`}
-                  >
-                    <span className="truncate">{ev.name}</span>
-                    <span className="text-xs text-slate-400">{ev.type}</span>
+              <div className="absolute left-0 mt-1.5 w-60 rounded-xl p-1.5 z-50 animate-scale-in"
+                style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
+                <div className="text-2xs font-bold uppercase tracking-widest px-2.5 py-1.5 font-body"
+                  style={{ color: 'var(--text-muted)' }}>Switch Event</div>
+                {events.map(ev => (
+                  <button key={ev.id} onClick={() => { setCurrentEvent(ev); setDropdownOpen(false); }}
+                    className="w-full text-left px-3 py-2 rounded-lg text-xs flex items-center justify-between transition-all"
+                    style={{
+                      background: ev.id === currentEvent.id ? 'rgba(99,102,241,0.12)' : 'transparent',
+                      color: ev.id === currentEvent.id ? '#818CF8' : 'var(--text-secondary)',
+                    }}>
+                    <span className="truncate font-medium">{ev.name}</span>
+                    <span className="text-2xs font-mono" style={{ color: 'var(--text-muted)' }}>{ev.type}</span>
                   </button>
                 ))}
               </div>
@@ -101,95 +93,109 @@ export const Navbar: React.FC<NavbarProps> = ({
         )}
       </div>
 
-      {/* Center Search / Command Palette shortcut */}
-      <div className="hidden md:flex items-center">
-        <button
-          onClick={onOpenCommandPalette}
-          className="flex items-center space-x-3 px-4 py-1.5 rounded-xl bg-background-subtle border border-border hover:border-primary-500/50 text-slate-400 hover:text-slate-200 transition-all text-xs w-64 justify-between group"
-        >
-          <div className="flex items-center space-x-2">
-            <Search className="w-3.5 h-3.5 text-slate-400 group-hover:text-primary-400 transition-colors" />
-            <span>Search tasks, risks, volunteers...</span>
-          </div>
-          <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-border rounded text-slate-400 border border-slate-700">
-            Ctrl K
+      {/* CENTER: Search */}
+      <div className="hidden md:flex flex-1 max-w-xs mx-4">
+        <button onClick={onOpenCommandPalette}
+          className="w-full flex items-center space-x-2.5 px-3.5 py-2 rounded-xl text-xs transition-all"
+          style={{
+            background: 'var(--bg-subtle)',
+            border: '1px solid var(--border-default)',
+            color: 'var(--text-muted)',
+          }}>
+          <Search className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="flex-1 text-left">Search tasks, risks, volunteers...</span>
+          <kbd className="text-2xs font-mono px-1.5 py-0.5 rounded"
+            style={{ background: 'var(--bg-hover)', border: '1px solid var(--border-default)', color: 'var(--text-muted)' }}>
+            ⌘K
           </kbd>
         </button>
       </div>
 
-      {/* Right Actions */}
-      <div className="flex items-center space-x-3">
-        {/* Event Health Score Indicator */}
-        <div 
-          onClick={() => navigate('/mission-control')}
-          className={`cursor-pointer flex items-center space-x-2 px-3 py-1 rounded-full border text-xs font-medium transition-all ${getHealthColor(healthScore)}`}
-          title="Overall Event Health Score based on critical bottlenecks, overdue tasks, and volunteer allocation."
-        >
-          <Activity className="w-3.5 h-3.5 animate-pulse" />
+      {/* RIGHT: Actions */}
+      <div className="flex items-center space-x-1.5">
+        {/* Health Score */}
+        <div onClick={() => navigate('/mission-control')}
+          className="hidden sm:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg cursor-pointer text-xs font-semibold transition-all"
+          style={{ background: hStyle.bg, border: `1px solid ${hStyle.border}`, color: hStyle.color }}>
+          <Activity className="w-3.5 h-3.5" />
           <span>Health: {healthScore}/100</span>
         </div>
 
-        {/* War Room Shortcut */}
-        <button
-          onClick={() => navigate('/war-room')}
-          className="hidden sm:flex items-center space-x-1.5 px-3 py-1 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 hover:bg-rose-500/20 text-xs font-semibold transition-colors"
-        >
-          <ShieldAlert className="w-3.5 h-3.5 text-rose-400 animate-bounce" />
+        {/* War Room */}
+        <button onClick={() => navigate('/war-room')}
+          className="hidden sm:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all"
+          style={{
+            background: 'rgba(244,63,94,0.08)',
+            border: '1px solid rgba(244,63,94,0.25)',
+            color: '#F87171',
+          }}>
+          <ShieldAlert className="w-3.5 h-3.5" />
           <span>WAR ROOM</span>
         </button>
 
-        {/* Notification Bell */}
-        <button
-          onClick={onOpenNotifications}
-          className="relative p-2 rounded-xl bg-background-subtle border border-border hover:border-border-highlight text-slate-300 hover:text-white transition-colors"
-          title="Notifications"
-        >
+        {/* Notifications */}
+        <button onClick={onOpenNotifications}
+          className="relative p-2 rounded-lg transition-all"
+          style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-default)', color: 'var(--text-secondary)' }}>
           <Bell className="w-4 h-4" />
           {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-accent-rose text-white text-[10px] font-bold flex items-center justify-center animate-pulse">
+            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-2xs font-bold flex items-center justify-center">
               {unreadCount}
             </span>
           )}
         </button>
 
-        {/* User Menu */}
+        {/* Theme Toggle */}
+        <button onClick={toggleTheme}
+          title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          className="p-2 rounded-lg transition-all"
+          style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-default)', color: 'var(--text-secondary)' }}>
+          {isDark
+            ? <Sun className="w-4 h-4" style={{ color: '#FBBF24' }} />
+            : <Moon className="w-4 h-4" style={{ color: '#818CF8' }} />
+          }
+        </button>
+
+        {/* User Avatar */}
         <div className="relative">
-          <button
-            onClick={() => setUserMenuOpen(!userMenuOpen)}
-            className="flex items-center space-x-2 p-1.5 rounded-xl hover:bg-background-subtle transition-colors"
-          >
-            <div className="w-8 h-8 rounded-full bg-primary-600/30 border border-primary-500/40 flex items-center justify-center text-primary-300 font-bold text-xs">
+          <button onClick={() => setUserMenuOpen(!userMenuOpen)}
+            className="flex items-center space-x-2 pl-1.5 pr-2 py-1 rounded-xl transition-all"
+            style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-default)' }}>
+            <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-black"
+              style={{ background: 'linear-gradient(135deg,#6366F1,#8B5CF6)' }}>
               {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
             </div>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden sm:block" />
+            <div className="hidden sm:block text-left">
+              <div className="text-xs font-semibold leading-none" style={{ color: 'var(--text-primary)' }}>
+                {user?.name || 'User'}
+              </div>
+              <div className="text-2xs mt-0.5 font-body" style={{ color: 'var(--text-muted)' }}>
+                {user?.role || 'ORGANIZER'}
+              </div>
+            </div>
+            <ChevronDown className="w-3.5 h-3.5 hidden sm:block" style={{ color: 'var(--text-muted)' }} />
           </button>
 
           {userMenuOpen && (
-            <div className="absolute right-0 mt-2 w-56 rounded-xl bg-background-card border border-border shadow-glass p-2 z-50 animate-scale-in">
-              <div className="px-3 py-2 border-b border-border mb-1">
-                <div className="text-sm font-medium text-white truncate">{user?.name}</div>
-                <div className="text-xs text-slate-400 truncate">{user?.email}</div>
-                <span className="inline-block mt-1 text-[10px] px-1.5 py-0.2 rounded bg-primary-500/20 text-primary-300 font-mono">
-                  {user?.role || 'ORGANIZER'}
-                </span>
+            <div className="absolute right-0 mt-1.5 w-52 rounded-xl p-1.5 z-50 animate-scale-in"
+              style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
+              <div className="px-3 py-2.5 mb-1" style={{ borderBottom: '1px solid var(--border-default)' }}>
+                <div className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{user?.name}</div>
+                <div className="text-xs truncate font-body" style={{ color: 'var(--text-muted)' }}>{user?.email}</div>
               </div>
-              <button
-                onClick={() => {
-                  navigate('/brain');
-                  setUserMenuOpen(false);
-                }}
-                className="w-full text-left px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-background-hover transition-colors flex items-center space-x-2"
-              >
-                <UserIcon className="w-4 h-4 text-slate-400" />
+              <button onClick={() => { navigate('/brain'); setUserMenuOpen(false); }}
+                className="w-full text-left px-3 py-2 rounded-lg text-xs flex items-center space-x-2 transition-all"
+                style={{ color: 'var(--text-secondary)' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-hover)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                <UserIcon className="w-4 h-4" />
                 <span>Club Profile & Brain</span>
               </button>
-              <button
-                onClick={() => {
-                  logout();
-                  navigate('/auth');
-                }}
-                className="w-full text-left px-3 py-2 rounded-lg text-sm text-rose-400 hover:bg-rose-500/10 transition-colors flex items-center space-x-2"
-              >
+              <button onClick={() => { logout(); navigate('/auth'); }}
+                className="w-full text-left px-3 py-2 rounded-lg text-xs flex items-center space-x-2 transition-all"
+                style={{ color: '#F87171' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(244,63,94,0.08)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                 <LogOut className="w-4 h-4" />
                 <span>Sign Out</span>
               </button>

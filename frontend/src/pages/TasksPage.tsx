@@ -91,125 +91,116 @@ export const TasksPage: React.FC = () => {
   const columns: ('TODO' | 'IN_PROGRESS' | 'BLOCKED' | 'DONE')[] = ['TODO', 'IN_PROGRESS', 'BLOCKED', 'DONE'];
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="space-y-5 pb-12 animate-fade-in">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4"
+        style={{ borderBottom: '1px solid var(--border-default)' }}>
         <div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 mb-1">
             <span className="live-pulse" />
-            <h1 className="text-xl font-bold text-white flex items-center space-x-2">
-              <CheckSquare className="w-5 h-5 text-primary-400" />
-              <span>Tasks & Roadmap Execution</span>
+            <h1 className="text-xl font-heading font-black flex items-center space-x-2.5" style={{ color: 'var(--text-primary)' }}>
+              <CheckSquare className="w-5 h-5" style={{ color: '#818CF8' }} />
+              <span>Tasks &amp; <span className="text-gradient">Roadmap</span> Execution</span>
             </h1>
           </div>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-xs font-body" style={{ color: 'var(--text-muted)' }}>
             Manage deliverables, assignees, deadlines, and dependencies across workstreams.
           </p>
         </div>
 
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2">
           {/* View Switcher */}
-          <div className="flex items-center bg-background-card border border-border p-1 rounded-xl">
-            <button
-              onClick={() => setView('KANBAN')}
-              className={`p-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-colors ${
-                view === 'KANBAN' ? 'bg-primary-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Columns className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Kanban</span>
-            </button>
-            <button
-              onClick={() => setView('LIST')}
-              className={`p-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-colors ${
-                view === 'LIST' ? 'bg-primary-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <List className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">List</span>
-            </button>
-            <button
-              onClick={() => setView('TIMELINE')}
-              className={`p-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-colors ${
-                view === 'TIMELINE' ? 'bg-primary-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Clock className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Timeline</span>
-            </button>
+          <div className="flex items-center p-1 rounded-xl" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)' }}>
+            {[
+              { key: 'KANBAN', icon: Columns, label: 'Kanban' },
+              { key: 'LIST',   icon: List,    label: 'List' },
+              { key: 'TIMELINE', icon: Clock, label: 'Timeline' },
+            ].map(({ key, icon: Icon, label }) => (
+              <button key={key} onClick={() => setView(key as any)}
+                className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                style={view === key ? {
+                  background: 'linear-gradient(135deg,#6366F1,#4F46E5)',
+                  color: '#fff',
+                  boxShadow: '0 2px 8px rgba(99,102,241,0.35)',
+                } : { color: 'var(--text-muted)' }}>
+                <Icon className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{label}</span>
+              </button>
+            ))}
           </div>
 
-          <button
-            onClick={() => setCreateModalOpen(true)}
-            className="px-4 py-2 rounded-xl bg-primary-600 hover:bg-primary-500 text-white font-bold text-xs shadow-glow transition-all flex items-center space-x-1.5"
-          >
+          <button onClick={() => setCreateModalOpen(true)}
+            className="flex items-center space-x-1.5 px-4 py-2 rounded-xl text-white text-xs font-bold transition-all"
+            style={{
+              background: 'linear-gradient(135deg,#6366F1,#4F46E5)',
+              boxShadow: '0 4px 14px rgba(99,102,241,0.4)',
+              fontFamily: 'Outfit',
+            }}>
             <Plus className="w-4 h-4" />
-            <span>New Task</span>
+            <span>+ New Task</span>
           </button>
         </div>
       </div>
 
       {toastMessage && (
-        <div className="p-3.5 bg-emerald-500/15 border border-emerald-500/30 rounded-2xl text-xs text-emerald-300 flex items-center space-x-2 animate-fade-in">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-          <span>{toastMessage}</span>
+        <div className="p-3.5 rounded-xl text-xs flex items-center space-x-2 animate-fade-in"
+          style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)', color: '#6EE7B7' }}>
+          <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+          <span className="font-body">{toastMessage}</span>
         </div>
       )}
 
-      {/* No event selected */}
+      {/* Empty states */}
       {!currentEvent && (
         <div className="flex flex-col items-center justify-center py-24 space-y-3 text-center">
-          <CheckSquare className="w-10 h-10 text-slate-600" />
-          <p className="text-slate-400 font-semibold">No event selected</p>
-          <p className="text-xs text-slate-500">Select an event from the sidebar to view its tasks and roadmap.</p>
+          <CheckSquare className="w-10 h-10" style={{ color: 'var(--text-muted)' }} />
+          <p className="font-semibold font-heading" style={{ color: 'var(--text-secondary)' }}>No event selected</p>
+          <p className="text-xs font-body" style={{ color: 'var(--text-muted)' }}>Select an event from the navbar to view its tasks and roadmap.</p>
         </div>
       )}
 
-      {/* Event selected but no tasks yet */}
       {currentEvent && tasks.length === 0 && (
         <div className="flex flex-col items-center justify-center py-20 space-y-3 text-center">
-          <CheckSquare className="w-10 h-10 text-slate-600" />
-          <p className="text-slate-300 font-semibold">No tasks for "{currentEvent.name}" yet</p>
-          <p className="text-xs text-slate-500">Click <span className="text-primary-400 font-bold">+ New Task</span> to add the first deliverable for this event.</p>
+          <CheckSquare className="w-10 h-10" style={{ color: 'var(--text-muted)' }} />
+          <p className="font-semibold font-heading" style={{ color: 'var(--text-primary)' }}>No tasks for "{currentEvent.name}" yet</p>
+          <p className="text-xs font-body" style={{ color: 'var(--text-muted)' }}>
+            Click <span style={{ color: '#818CF8', fontWeight: 700 }}>+ New Task</span> to add the first deliverable.
+          </p>
         </div>
       )}
 
-      {/* Filter Bar — only show when there are tasks */}
+      {/* Filter Bar */}
       {currentEvent && tasks.length > 0 && (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="relative w-full sm:w-80">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-2.5" />
-              <input
-                type="text"
-                placeholder="Filter tasks by title or tag..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full bg-background-subtle border border-border focus:border-primary-500 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none"
-              />
-            </div>
-
-            <div className="flex items-center space-x-2 w-full sm:w-auto overflow-x-auto">
-              <button
-                onClick={() => setSelectedTeam('ALL')}
-                className={`px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap ${
-                  selectedTeam === 'ALL' ? 'bg-primary-600 text-white' : 'bg-background-card border border-border text-slate-400'
-                }`}
-              >
-                All Teams
-              </button>
-              {teams.map((tm) => (
-                <button
-                  key={tm.id}
-                  onClick={() => setSelectedTeam(tm.id)}
-                  className={`px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap ${
-                    selectedTeam === tm.id ? 'bg-primary-600 text-white' : 'bg-background-card border border-border text-slate-400'
-                  }`}
-                >
-                  {tm.name.split(' ')[0]}
-                </button>
-              ))}
-            </div>
+          <div className="relative w-full sm:w-72">
+            <Search className="w-4 h-4 absolute left-3.5 top-2.5" style={{ color: 'var(--text-muted)' }} />
+            <input type="text" placeholder="Filter tasks by title or tag..."
+              value={search} onChange={e => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 rounded-xl text-xs font-body focus:outline-none"
+              style={{
+                background: 'var(--bg-subtle)',
+                border: '1px solid var(--border-default)',
+                color: 'var(--text-primary)',
+              }} />
           </div>
+
+          <div className="flex items-center space-x-2 overflow-x-auto">
+            {[{ id: 'ALL', label: 'All Teams' }, ...teams.map(tm => ({ id: tm.id, label: tm.name.split(' ')[0] }))].map(({ id, label }) => (
+              <button key={id} onClick={() => setSelectedTeam(id)}
+                className="px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all"
+                style={selectedTeam === id ? {
+                  background: 'linear-gradient(135deg,#6366F1,#4F46E5)',
+                  color: '#fff', boxShadow: '0 2px 8px rgba(99,102,241,0.3)',
+                } : {
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border-default)',
+                  color: 'var(--text-secondary)',
+                }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* VIEW 1: KANBAN BOARD */}
@@ -217,60 +208,106 @@ export const TasksPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
           {columns.map((col) => {
             const colTasks = filteredTasks.filter(t => t.status === col);
+            const colColors: Record<string, { label: string; dot: string; count: string }> = {
+              'TODO':        { label: '#8892B0', dot: '#818CF8', count: 'rgba(99,102,241,0.12)' },
+              'IN_PROGRESS': { label: '#8892B0', dot: '#67E8F9', count: 'rgba(6,182,212,0.12)' },
+              'BLOCKED':     { label: '#8892B0', dot: '#F87171', count: 'rgba(244,63,94,0.12)' },
+              'DONE':        { label: '#8892B0', dot: '#6EE7B7', count: 'rgba(16,185,129,0.12)' },
+            };
+            const cc = colColors[col];
             return (
-              <div key={col} className="bg-background-card/70 border border-border rounded-3xl p-4 space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-border/80">
-                  <span className="text-xs font-bold text-white uppercase tracking-wider">{col.replace('_', ' ')}</span>
-                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-background-subtle text-slate-300">
+              <div key={col} className="flex flex-col space-y-3">
+                {/* Column Header */}
+                <div className="flex items-center justify-between px-1">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: cc.dot }} />
+                    <span className="text-xs font-bold uppercase tracking-widest font-body" style={{ color: cc.label }}>
+                      {col.replace('_', ' ')}
+                    </span>
+                  </div>
+                  <span className="text-xs font-bold font-mono px-2 py-0.5 rounded-full" style={{ background: cc.count, color: cc.label }}>
                     {colTasks.length}
                   </span>
                 </div>
 
-                <div className="space-y-2.5 max-h-[calc(100vh-20rem)] overflow-y-auto pr-1">
-                  {colTasks.map((t) => (
-                    <div
-                      key={t.id}
-                      className="p-3.5 rounded-2xl bg-background-subtle border border-border hover:border-border-highlight transition-all space-y-2"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-mono text-primary-400 font-semibold truncate max-w-[120px]">
-                          {t.team?.name || 'General'}
-                        </span>
-                        <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
-                          t.priority === 'CRITICAL' ? 'bg-rose-500/20 text-rose-300' : 'bg-primary-500/20 text-primary-300'
-                        }`}>
-                          {t.priority}
-                        </span>
-                      </div>
-                      <div className="text-xs font-bold text-white leading-snug">{t.title}</div>
+                {/* Cards */}
+                <div className="space-y-2.5 max-h-[calc(100vh-18rem)] overflow-y-auto pr-0.5">
+                  {colTasks.map((t) => {
+                    const priorityStyle: Record<string, { bg: string; color: string }> = {
+                      CRITICAL: { bg: 'rgba(244,63,94,0.15)',   color: '#F87171' },
+                      HIGH:     { bg: 'rgba(251,146,60,0.15)',  color: '#FDBA74' },
+                      MEDIUM:   { bg: 'rgba(251,191,36,0.15)',  color: '#FDE68A' },
+                      LOW:      { bg: 'rgba(148,163,184,0.12)', color: '#94A3B8' },
+                    };
+                    const ps = priorityStyle[t.priority] || priorityStyle.MEDIUM;
+                    const teamShort = t.team?.name ? t.team.name.split(' ').slice(0, 2).join(' & ') : 'General';
 
-                      <div className="pt-2 border-t border-white/5 flex items-center justify-between text-[10px] text-slate-400">
-                        <span>{new Date(t.deadline).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
-                        <span className="text-slate-300 truncate max-w-[80px]">
-                          {t.assignee?.name || 'Unassigned'}
-                        </span>
-                      </div>
+                    return (
+                      <div key={t.id} className="p-4 rounded-2xl transition-all group cursor-default"
+                        style={{
+                          background: 'var(--bg-card)',
+                          border: '1px solid var(--border-default)',
+                          boxShadow: 'var(--card-shadow)',
+                        }}
+                        onMouseEnter={e => {
+                          (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-hi)';
+                          (e.currentTarget as HTMLElement).style.boxShadow = 'var(--card-hover-shadow)';
+                          (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)';
+                        }}
+                        onMouseLeave={e => {
+                          (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-default)';
+                          (e.currentTarget as HTMLElement).style.boxShadow = 'var(--card-shadow)';
+                          (e.currentTarget as HTMLElement).style.transform = 'none';
+                        }}>
+                        {/* Team + Priority row */}
+                        <div className="flex items-center justify-between mb-2.5">
+                          <span className="text-2xs font-semibold truncate max-w-[120px] font-body" style={{ color: 'var(--text-muted)' }}>
+                            {teamShort}
+                          </span>
+                          <span className="text-2xs font-bold px-1.5 py-0.5 rounded font-mono"
+                            style={{ background: ps.bg, color: ps.color }}>
+                            {t.priority}
+                          </span>
+                        </div>
 
-                      {/* Quick Status Shift Selector */}
-                      <div className="pt-2 flex items-center justify-between text-[10px]">
-                        <span className="text-slate-500">Move:</span>
-                        <div className="flex space-x-1">
-                          {columns.filter(c => c !== col).map((targetCol) => (
-                            <button
-                              key={targetCol}
-                              onClick={() => handleStatusChange(t.id, targetCol)}
-                              className="px-1.5 py-0.5 rounded bg-background-hover hover:bg-primary-600/30 text-slate-400 hover:text-white transition-colors"
-                            >
-                              {targetCol === 'IN_PROGRESS' ? 'PROG' : targetCol}
-                            </button>
-                          ))}
+                        {/* Title */}
+                        <div className="text-xs font-bold leading-snug mb-3 font-heading" style={{ color: 'var(--text-primary)' }}>
+                          {t.title}
+                        </div>
+
+                        {/* Date + Assignee */}
+                        <div className="flex items-center justify-between text-2xs font-body" style={{ color: 'var(--text-muted)' }}>
+                          <span>{new Date(t.deadline).toLocaleDateString([], { day: 'numeric', month: 'short' })}</span>
+                          <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }} className="truncate max-w-[80px]">
+                            {t.assignee?.name || 'Unassigned'}
+                          </span>
+                        </div>
+
+                        {/* Move buttons */}
+                        <div className="mt-2.5 pt-2.5 flex items-center justify-between"
+                          style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                          <span className="text-2xs font-body" style={{ color: 'var(--text-muted)' }}>Move:</span>
+                          <div className="flex space-x-1">
+                            {columns.filter(c => c !== col).map(targetCol => (
+                              <button key={targetCol}
+                                onClick={() => handleStatusChange(t.id, targetCol)}
+                                className="text-2xs font-mono font-bold px-1.5 py-0.5 rounded transition-all"
+                                style={{ background: 'var(--bg-hover)', color: 'var(--text-muted)' }}
+                                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(99,102,241,0.2)'; (e.currentTarget as HTMLElement).style.color = '#818CF8'; }}
+                                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'; }}>
+                                {targetCol === 'IN_PROGRESS' ? 'PROG' : targetCol}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
 
                   {colTasks.length === 0 && (
-                    <div className="py-8 text-center text-xs text-slate-500">No tasks</div>
+                    <div className="py-10 text-center text-xs font-body" style={{ color: 'var(--text-muted)' }}>
+                      No tasks
+                    </div>
                   )}
                 </div>
               </div>
