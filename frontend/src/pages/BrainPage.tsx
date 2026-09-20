@@ -197,7 +197,14 @@ export const BrainPage: React.FC = () => {
 
         {aiAnswer && (
           <div className="p-5 rounded-2xl bg-primary-950/30 border border-primary-500/30 space-y-4 animate-fade-in">
-            <div className="text-xs text-white leading-relaxed whitespace-pre-wrap">{aiAnswer.answer}</div>
+            <div className="text-xs text-white leading-relaxed whitespace-pre-wrap">
+              {aiAnswer.answer
+                .replace(/\*\*(.*?)\*\*/g, '$1')   // remove **bold**
+                .replace(/\*(.*?)\*/g, '$1')         // remove *italic*
+                .replace(/`(.*?)`/g, '$1')           // remove `code`
+                .replace(/#{1,6}\s/g, '')            // remove # headings
+              }
+            </div>
             {aiAnswer.sources?.length > 0 && (
               <div className="pt-3 border-t border-primary-500/20 space-y-2">
                 <div className="text-[10px] font-mono uppercase text-primary-300 font-bold flex items-center space-x-1">
