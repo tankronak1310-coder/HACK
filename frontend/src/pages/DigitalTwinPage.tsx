@@ -26,6 +26,7 @@ import {
   Calendar
 } from 'lucide-react';
 import { useEvent } from '../context/EventContext.js';
+import { useTheme } from '../context/ThemeContext.js';
 import { Task } from '../types/index.js';
 
 // Custom Node Component for Tasks in Digital Twin
@@ -36,22 +37,31 @@ const TaskNode = ({ data }: any) => {
   const isInProg   = data.task.status === 'IN_PROGRESS';
   const isCritical = data.task.priority === 'CRITICAL';
   const isHigh     = data.task.priority === 'HIGH';
+  const isDark     = data.isDark !== false; // default dark
 
-  // Card background — dark navy base
-  const cardBg = isDone     ? 'linear-gradient(135deg,rgba(16,185,129,0.08) 0%,#0E1120 100%)'
-               : isBlocked  ? 'linear-gradient(135deg,rgba(245,158,11,0.1) 0%,#0E1120 100%)'
-               : isCritical ? 'linear-gradient(135deg,rgba(244,63,94,0.08) 0%,#0E1120 100%)'
-               : '#0E1120';
+  const cardBase   = isDark ? '#0E1120' : '#FFFFFF';
+  const borderBase = isDark ? '#1E2640' : '#D1D9E6';
+  const titleColor = isDark ? '#E8EAF0' : '#0F172A';
+  const dateColor  = isDark ? '#4A5578' : '#64748B';
+  const assigneeColor = isDark ? '#8892B0' : '#475569';
+  const dividerColor  = isDark ? '#1E2640' : '#E2E8F0';
+  const handleBorder  = isDark ? '#0A0D1A' : '#FFFFFF';
+
+  // Card background
+  const cardBg = isDone     ? `linear-gradient(135deg,rgba(16,185,129,0.08) 0%,${cardBase} 100%)`
+               : isBlocked  ? `linear-gradient(135deg,rgba(245,158,11,0.1) 0%,${cardBase} 100%)`
+               : isCritical ? `linear-gradient(135deg,rgba(244,63,94,0.08) 0%,${cardBase} 100%)`
+               : cardBase;
 
   const cardBorder = isSelected ? '2px solid #6366F1'
                    : isDone     ? '1.5px solid rgba(16,185,129,0.5)'
                    : isBlocked  ? '1.5px solid rgba(245,158,11,0.6)'
                    : isCritical ? '1.5px solid rgba(244,63,94,0.5)'
-                   : '1px solid #1E2640';
+                   : `1px solid ${borderBase}`;
 
   const cardShadow = isSelected
     ? '0 0 0 3px rgba(99,102,241,0.2), 0 8px 24px rgba(0,0,0,0.5)'
-    : '0 2px 12px rgba(0,0,0,0.4)';
+    : isDark ? '0 2px 12px rgba(0,0,0,0.4)' : '0 2px 10px rgba(15,23,42,0.08)';
 
   // Status badge
   const statusConfig: Record<string, { bg: string; color: string }> = {
@@ -81,7 +91,7 @@ const TaskNode = ({ data }: any) => {
       fontFamily: 'Inter, sans-serif',
     }}>
       <Handle type="target" position={Position.Top}
-        style={{ width: 7, height: 7, background: '#6366F1', border: '2px solid #0A0D1A', top: -4 }} />
+        style={{ width: 7, height: 7, background: '#6366F1', border: `2px solid ${handleBorder}`, top: -4 }} />
 
       {/* Top: Team label + Status badge */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: 8 }}>
@@ -105,7 +115,7 @@ const TaskNode = ({ data }: any) => {
       {/* Title */}
       <div style={{
         fontSize: 13, fontWeight: 700, fontFamily: 'Outfit, sans-serif',
-        color: '#E8EAF0', lineHeight: 1.4,
+        color: titleColor, lineHeight: 1.4,
         display: '-webkit-box', WebkitLineClamp: 2,
         WebkitBoxOrient: 'vertical', overflow: 'hidden',
         letterSpacing: '-0.01em', marginBottom: 12,
@@ -116,14 +126,14 @@ const TaskNode = ({ data }: any) => {
       {/* Bottom: Date + Assignee */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        paddingTop: 10, borderTop: '1px solid #1E2640',
+        paddingTop: 10, borderTop: `1px solid ${dividerColor}`,
         fontSize: 10, fontFamily: 'Inter',
       }}>
-        <span style={{ color: '#4A5578', fontWeight: 500 }}>
+        <span style={{ color: dateColor, fontWeight: 500 }}>
           {new Date(data.task.deadline).toLocaleDateString([], { day: 'numeric', month: 'short' })}
         </span>
         <span style={{
-          color: '#8892B0', fontWeight: 600,
+          color: assigneeColor, fontWeight: 600,
           maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>
           {data.task.assignee?.name || 'Unassigned'}
@@ -131,14 +141,22 @@ const TaskNode = ({ data }: any) => {
       </div>
 
       <Handle type="source" position={Position.Bottom}
-        style={{ width: 7, height: 7, background: '#06B6D4', border: '2px solid #0A0D1A', bottom: -4 }} />
+        style={{ width: 7, height: 7, background: '#06B6D4', border: `2px solid ${handleBorder}`, bottom: -4 }} />
     </div>
   );
 };
 
 export const DigitalTwinPage: React.FC = () => {
   const { currentEvent } = useEvent();
+  const { isDark } = useTheme();
   const tasks = currentEvent?.tasks || [];
+
+  // Theme-aware canvas colors
+  const canvasBg      = isDark ? '#07090F' : '#F4F6F9';
+  const canvasBorder  = isDark ? '#1E2640' : '#D1D9E6';
+  const dotColor      = isDark ? '#1E2640' : '#A3B0C8';
+  const minimapBg     = isDark ? '#0E1120' : '#FFFFFF';
+  const minimapMask   = isDark ? 'rgba(7,9,15,0.8)' : 'rgba(244,246,249,0.8)';
 
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [aiExplanation, setAiExplanation] = useState<string | null>(null);
@@ -158,7 +176,7 @@ export const DigitalTwinPage: React.FC = () => {
         id: task.id,
         type: 'taskNode',
         position: { x: col * 260 + 50, y: row * 160 + 50 },
-        data: { task, isSelected: selectedTask?.id === task.id },
+        data: { task, isSelected: selectedTask?.id === task.id, isDark },
       });
 
       // Add edges from dependencies
@@ -186,7 +204,7 @@ export const DigitalTwinPage: React.FC = () => {
     });
 
     return { initialNodes: nodes, initialEdges: edges };
-  }, [tasks, selectedTask?.id]);
+  }, [tasks, selectedTask?.id, isDark]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -246,9 +264,9 @@ export const DigitalTwinPage: React.FC = () => {
       {/* Main Flow Canvas */}
       <div className="flex-1 relative rounded-2xl overflow-hidden digital-twin-canvas"
         style={{
-          border: '1px solid #1E2640',
-          background: '#07090F',
-          boxShadow: '0 4px 32px rgba(0,0,0,0.6)',
+          border: `1px solid ${canvasBorder}`,
+          background: canvasBg,
+          boxShadow: isDark ? '0 4px 32px rgba(0,0,0,0.6)' : '0 4px 24px rgba(15,23,42,0.08)',
         }}>
         <ReactFlow
           nodes={nodes}
@@ -258,9 +276,9 @@ export const DigitalTwinPage: React.FC = () => {
           nodeTypes={nodeTypes}
           onNodeClick={onNodeClick}
           fitView
-          style={{ background: '#07090F' }}
+          style={{ background: canvasBg }}
         >
-          <Background color="#1E2640" gap={28} size={1} />
+          <Background color={dotColor} gap={28} size={1} />
           <Controls />
           <MiniMap
             nodeColor={(n: any) => {
@@ -269,8 +287,8 @@ export const DigitalTwinPage: React.FC = () => {
               if (n.data?.task?.priority === 'CRITICAL') return '#F43F5E';
               return '#6366F1';
             }}
-            maskColor="rgba(7,9,15,0.8)"
-            style={{ background: '#0E1120', border: '1px solid #1E2640', borderRadius: 10 }}
+            maskColor={minimapMask}
+            style={{ background: minimapBg, border: `1px solid ${canvasBorder}`, borderRadius: 10 }}
           />
         </ReactFlow>
 

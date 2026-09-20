@@ -18,7 +18,7 @@ export default {
           highlight: 'var(--border-hi)',
         },
         primary: {
-          50: '#F0EEFF', 100: '#E0DAFF', 200: '#C4B5FD',
+          50: '#EEF2FF', 100: '#E0E7FF', 200: '#C7D2FE',
           300: '#A78BFA', 400: '#818CF8',
           500: '#6366F1', 600: '#4F46E5', 700: '#4338CA',
           DEFAULT: '#6366F1',
