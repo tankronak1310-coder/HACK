@@ -12,19 +12,6 @@ export class DocumentsService {
     summary?: string;
     content?: string;
   }) {
-    const fullContent = data.content || data.summary || data.title;
-
-    // Split content into chunks of ~1000 chars for better search
-    const chunkSize = 1000;
-    const chunks: { content: string; pageNumber: number }[] = [];
-    for (let i = 0; i < fullContent.length; i += chunkSize) {
-      chunks.push({
-        content: fullContent.slice(i, i + chunkSize),
-        pageNumber: Math.floor(i / chunkSize) + 1,
-      });
-    }
-    if (chunks.length === 0) chunks.push({ content: fullContent, pageNumber: 1 });
-
     const doc = await prisma.document.create({
       data: {
         clubId: data.clubId,
@@ -35,9 +22,14 @@ export class DocumentsService {
         fileSize: data.fileSize,
         category: data.category,
         summary: data.summary,
-        content: fullContent,
+        content: data.content,
         chunks: {
-          create: chunks,
+          create: [
+            {
+              content: data.content || data.summary || data.title,
+              pageNumber: 1,
+            },
+          ],
         },
       },
       include: { chunks: true },
@@ -56,6 +48,32 @@ export class DocumentsService {
       include: {
         event: { select: { id: true, name: true } },
       },
+    });
+  }
+
+  async updateDocument(documentId: string, data: Partial<{
+    title: string;
+    category: string;
+    summary: string;
+    content: string;
+    eventId: string | null;
+  }>) {
+    const updateData: any = { ...data };
+    if (data.content || data.summary) {
+      // Also update first chunk content
+      const firstChunk = await prisma.documentChunk.findFirst({ where: { documentId } });
+      if (firstChunk) {
+        await prisma.documentChunk.update({
+          where: { id: firstChunk.id },
+          data: { content: data.content || data.summary },
+        });
+      }
+    }
+
+    return await prisma.document.update({
+      where: { id: documentId },
+      data: updateData,
+      include: { chunks: true, event: { select: { id: true, name: true } } },
     });
   }
 

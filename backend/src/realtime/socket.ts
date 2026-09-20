@@ -82,6 +82,15 @@ class RealtimeHub {
     }
   }
 
+  broadcastAll(data: any) {
+    const payload = JSON.stringify(data);
+    for (const client of this.clients) {
+      if (client.ws.readyState === WebSocket.OPEN) {
+        client.ws.send(payload);
+      }
+    }
+  }
+
   broadcastTaskUpdate(eventId: string, task: any) {
     this.broadcastToEvent(eventId, {
       type: 'TASK_UPDATED',

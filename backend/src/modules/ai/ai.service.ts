@@ -1,8 +1,8 @@
 import { prisma } from '../../db/prisma.js';
+import { env } from '../../config/env.js';
 import { realtimeHub } from '../../realtime/socket.js';
 import { tasksService } from '../tasks/tasks.service.js';
 import { eventsService } from '../events/events.service.js';
-import { geminiService } from './gemini.service.js';
 
 export interface ProposedAction {
   id: string;
@@ -24,7 +24,7 @@ function taskLine(t: any, now: Date) {
     ? `⚠️ ${Math.abs(daysLeft)}d overdue`
     : daysLeft === 0 ? '⏰ Due today'
     : `📅 Due in ${daysLeft}d`;
-  return `• ${t.title} [${t.status}] — ${t.priority} priority — ${dueStr}${t.team ? ` (${t.team.name})` : ''}`;
+  return `• **${t.title}** [${t.status}] — ${t.priority} priority — ${dueStr}${t.team ? ` (${t.team.name})` : ''}`;
 }
 
 export class AiService {
@@ -424,22 +424,6 @@ export class AiService {
       }
     }
 
-    // ── Gemini enhancement for unrecognised queries ────────────────────────
-    if (geminiService.isAvailable() && content.includes('Tell me what you\'d like to know')) {
-      try {
-        const context = event
-          ? `Event: ${event.name}, Health: ${event.healthScore}/100, Tasks: ${allTasks.length} (${doneTasks.length} done), Risks: ${activeRisks.length} active, Volunteers: ${volunteers.length}`
-          : 'No active event';
-        const docs = [{ title: 'Live Event Data', content: context, summary: context }];
-        const geminiRes = await geminiService.answerFromDocuments(query, docs);
-        if (geminiRes.answer && geminiRes.answer.length > 20) {
-          content = geminiRes.answer;
-        }
-      } catch (e: any) {
-        // keep original content
-      }
-    }
-
     return {
       query,
       content,
@@ -595,109 +579,340 @@ export class AiService {
     return { scenario: scenario.type, currentState: { healthScore: currentHealth, criticalRisksCount: event.risks.filter(r => r.severity === 'CRITICAL').length, delayedTasksCount: 0 }, simulatedState: { healthScore: simulatedHealth, healthDelta: simulatedHealth - currentHealth, affectedTasksCount: affectedTasks.length, affectedTeamsCount: affectedTeams.size, affectedTeams: Array.from(affectedTeams), affectedTasks }, narrative, recommendation, canApply: true };
   }
 
-  async generateAnnouncements(data: { eventId: string; channel: 'WHATSAPP' | 'EMAIL' | 'NOTICE' | 'INSTAGRAM'; topic: string; targetAudience: string; }) {
-    const event = await prisma.event.findUnique({ where: { id: data.eventId } });
-    const eventName = event?.name || 'Our Event';
-    const eventDate = event?.date ? new Date(event.date).toLocaleDateString('en-IN', { month: 'long', day: 'numeric', year: 'numeric' }) : 'Upcoming Date';
-    let content = '', title = '';
-
-    switch (data.channel) {
-      case 'WHATSAPP':
-        title = `📢 [URGENT] ${eventName} Update: ${data.topic}`;
-        content = `🚀 *${eventName.toUpperCase()} ANNOUNCEMENT* 🚀\n\nHey Team! 👋\n\nImportant update regarding *${data.topic}*:\n📅 *Date*: ${eventDate}\n📍 *Venue*: ${event?.location || 'Main Venue'}\n\n👉 *Action Required*: All ${data.targetAudience.toLowerCase()} please check with your team leads.\n\nLet's make this edition legendary! ✨\n- *ClubOps AI*`;
-        break;
-      case 'EMAIL':
-        title = `Official Notification: ${data.topic} — ${eventName}`;
-        content = `Dear ${data.targetAudience},\n\nThis is an official update regarding ${data.topic} for ${eventName}, scheduled for ${eventDate}.\n\nPlease review the details shared by your team lead and confirm your attendance/role.\n\nFor queries, contact the organizing committee.\n\nWarm regards,\nThe Organizing Team\n${eventName} | Powered by ClubOps AI`;
-        break;
-      case 'INSTAGRAM':
-        title = `Instagram Caption: ${data.topic}`;
-        content = `⚡ ${data.topic.toUpperCase()} ⚡\n\n${eventName} is HERE! 🚀 Join us on ${eventDate} for an unforgettable experience.\n\n🔗 Register now — link in bio!\n\n#${eventName.replace(/\s+/g, '')} #CollegeFest #ClubOpsAI`;
-        break;
-      case 'NOTICE':
-        title = `OFFICIAL NOTICE: ${eventName}`;
-        content = `NOTICE\n\nSUBJECT: ${data.topic.toUpperCase()}\n\nAll students are informed that ${eventName} will be held on ${eventDate} at ${event?.location || 'the campus venue'}.\n\nFor details, contact the organizing committee.\n\nBy Order of the Organizing Committee.`;
-        break;
-    }
-    return { channel: data.channel, title, content, targetAudience: data.targetAudience };
-  }
-
-  async queryClubBrain(clubId: string, query: string) {
-    const documents = await prisma.document.findMany({
-      where: { clubId },
-      include: { chunks: true },
+  async generateAnnouncements(data: {
+    eventId: string;
+    channel: 'WHATSAPP' | 'EMAIL' | 'NOTICE' | 'INSTAGRAM';
+    topic: string;
+    targetAudience: string;
+    tone?: 'URGENT' | 'EXCITED' | 'FORMAL' | 'CASUAL';
+    additionalNotes?: string;
+  }) {
+    const event = await prisma.event.findUnique({
+      where: { id: data.eventId },
+      include: { club: true }
     });
 
-    if (documents.length === 0) {
-      return {
-        answer: `No documents uploaded yet. Click **"Upload Document"** to add a PDF — AI will scan and index all content automatically.`,
-        sources: [],
-      };
-    }
+    const eventName = event?.name || 'College Fest';
+    const clubName = event?.club?.name || 'Organizing Club';
+    const eventLocation = event?.location || 'Main Campus Venue';
+    const eventDate = event?.date
+      ? new Date(event.date).toLocaleDateString('en-IN', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' })
+      : 'Upcoming Date';
 
-    // Build document objects with all available content
-    const docs = documents.map(d => ({
-      id: d.id,
-      title: d.title,
-      content: d.content || d.chunks.map((c: any) => c.content).join('\n') || d.summary || '',
-      summary: d.summary || '',
-    }));
+    const rawTopic = (data.topic || '').trim();
+    const audience = data.targetAudience || 'ALL';
+    const userNotes = data.additionalNotes ? data.additionalNotes.trim() : '';
 
-    // ── Try Gemini first ──────────────────────────────────────────────────────
-    if (geminiService.isAvailable()) {
-      try {
-        const result = await geminiService.answerFromDocuments(query, docs);
-        return result;
-      } catch (e: any) {
-        console.warn('[Brain] Gemini failed:', e.message?.slice(0, 100));
+    // Determine effective tone
+    let tone = data.tone;
+    const lowerTopic = rawTopic.toLowerCase();
+    if (!tone) {
+      if (/urgent|alert|emergency|shift|rain|cancel|delay|immediately/.test(lowerTopic)) {
+        tone = 'URGENT';
+      } else if (/winner|prize|congrat|celebrat|party|reveal|live|swag|hackathon/.test(lowerTopic)) {
+        tone = 'EXCITED';
+      } else if (/notice|circular|official|policy|guideline|instruction|dean|faculty/.test(lowerTopic)) {
+        tone = 'FORMAL';
+      } else {
+        tone = data.channel === 'INSTAGRAM' ? 'EXCITED' : data.channel === 'NOTICE' ? 'FORMAL' : 'CASUAL';
       }
     }
 
-    // ── Fallback: Smart text search ──────────────────────────────────────────
-    const allText = docs.map(d => d.content).join('\n');
-    const lines = allText.split('\n').map(l => l.trim()).filter(l => l.length > 2);
+    // 1. Try Gemini API if key is present
+    if (env.GEMINI_API_KEY) {
+      try {
+        const geminiPrompt = `You are ClubOps AI, the autonomous operating system for collegiate events.
+Generate a tailored, highly specific announcement for:
+- Event: "${eventName}" (${eventDate} at ${eventLocation}, organized by ${clubName})
+- Channel: ${data.channel} (WHATSAPP, EMAIL, INSTAGRAM, or NOTICE)
+- Target Audience: ${audience}
+- Desired Tone: ${tone}
+- Announcement Topic: "${rawTopic}"
+${userNotes ? `- Extra Context/Details: "${userNotes}"` : ''}
 
-    if (lines.length === 0) {
-      return {
-        answer: `⚠️ The documents were uploaded but no text could be extracted.\n\n` +
-          `**Please delete the existing document and re-upload your PDF** — it will now be properly scanned.\n\n` +
-          `Documents: ${docs.map(d => d.title).join(', ')}`,
-        sources: [],
-      };
+CHANNEL SPECIFIC RULES:
+- WHATSAPP: Use bold (*text*), italic (_text_), bullet points, relevant emojis, concise and easy to skim on mobile. Include specific action items for ${audience}.
+- EMAIL: Professional Subject Line, proper salutation, structured context paragraphs, clear bulleted next steps, official sign-off with club and event details.
+- INSTAGRAM: Viral hook in first line, engaging emojis, paragraph breaks, clear Call To Action (CTA), 8-12 relevant hashtags including event and topic keywords.
+- NOTICE: Formal university circular format: Reference No., Date, Clear Subject in CAPS, authoritative administrative paragraphs, mandatory instructions, official sign-off by Organizing Committee.
+
+CRITICAL: Return ONLY valid JSON in this exact format:
+{
+  "title": "Concise, descriptive title or subject line",
+  "content": "The complete message body ready to publish"
+}`;
+
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${env.GEMINI_API_KEY}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: geminiPrompt }] }],
+            generationConfig: { responseMimeType: "application/json" }
+          }),
+        });
+
+        if (res.ok) {
+          const json: any = await res.json();
+          const rawText = json.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (rawText) {
+            const parsed = JSON.parse(rawText);
+            if (parsed.title && parsed.content) {
+              return { channel: data.channel, title: parsed.title, content: parsed.content, targetAudience: audience };
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[AI] Gemini announcement generation failed, falling back:', err);
+      }
     }
 
-    const q = query.toLowerCase();
-    const stopwords = new Set(['how', 'many', 'what', 'is', 'are', 'the', 'a', 'an', 'in', 'of', 'to', 'do', 'does', 'tell', 'me', 'about', 'show', 'give', 'can', 'this', 'my', 'our', 'for', 'and', 'was', 'were']);
-    const keywords = q.replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(w => w.length > 2 && !stopwords.has(w));
+    // 2. Try OpenAI API if key is present
+    if (env.OPENAI_API_KEY) {
+      try {
+        const res = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${env.OPENAI_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [
+              {
+                role: 'system',
+                content: 'You are ClubOps AI. Generate customized event announcements formatted strictly for the chosen communication channel. Output JSON with "title" and "content".',
+              },
+              {
+                role: 'user',
+                content: `Event: ${eventName}, Date: ${eventDate}, Location: ${eventLocation}, Club: ${clubName}, Channel: ${data.channel}, Audience: ${audience}, Tone: ${tone}, Topic: ${rawTopic}${userNotes ? `, Extra: ${userNotes}` : ''}`,
+              },
+            ],
+            response_format: { type: 'json_object' },
+          }),
+        });
 
-    const matchingLines = lines.filter(l => keywords.some(k => l.toLowerCase().includes(k)));
-
-    // Number pattern extraction
-    const numMatches = allText.match(/\b\d+\b[\s\S]{0,30}?(volunteer|member|person|people|staff|participant|name|total|count)/gi) || [];
-    const namePattern = /\b[A-Z][a-z]{2,}\s+[A-Z][a-z]{2,}\b/g;
-    const names = [...new Set(allText.match(namePattern) || [])];
-
-    let answer = `📄 **Answer from "${docs.map(d => d.title).join(', ')}":**\n\n`;
-
-    if (numMatches.length > 0) {
-      answer += `🔢 **Numbers found:**\n${numMatches.slice(0, 5).map(m => `• ${m.trim()}`).join('\n')}\n\n`;
+        if (res.ok) {
+          const json: any = await res.json();
+          const parsed = JSON.parse(json.choices?.[0]?.message?.content || '{}');
+          if (parsed.title && parsed.content) {
+            return { channel: data.channel, title: parsed.title, content: parsed.content, targetAudience: audience };
+          }
+        }
+      } catch (err) {
+        console.warn('[AI] OpenAI announcement generation failed, falling back:', err);
+      }
     }
-    if (names.length > 0 && keywords.some(k => ['volunteer', 'member', 'name', 'person', 'staff', 'roster'].includes(k))) {
-      answer += `👥 **Names found (${names.length}):**\n${names.slice(0, 20).map(n => `• ${n}`).join('\n')}\n\n`;
+
+    // 3. High-Fidelity Semantic Topic Synthesis Engine (Offline / Deterministic Fallback)
+    // Extracts context, entities, time, numbers, and category to produce authentic, varied content
+    const timeMatch = rawTopic.match(/\b(\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)|midnight|noon|\d+\s*(?:hours|hrs|mins|days))\b/i);
+    const extractedTime = timeMatch ? timeMatch[0] : null;
+
+    const venueMatch = rawTopic.match(/\b(audi(?:torium)?\s*\d*|hall\s*[a-z0-9]*|lab\s*\d*|ground|amphi(?:theatre)?|stage\s*\d*|room\s*\d*|seminar\s*hall|canteen)\b/i);
+    const extractedVenue = venueMatch ? venueMatch[0].toUpperCase() : null;
+
+    // Detect Semantic Category
+    let category: 'WEATHER_VENUE' | 'DEADLINE_SCHEDULE' | 'FOOD_HOSPITALITY' | 'SPEAKER_WORKSHOP' | 'AWARDS_WINNERS' | 'REGISTRATION_PASSES' | 'VOLUNTEER_OPS' | 'GENERAL' = 'GENERAL';
+
+    if (/rain|weather|storm|shift|relocat|auditorium|hall|venue|ground|indoor|outdoor|moved|resite/.test(lowerTopic)) {
+      category = 'WEATHER_VENUE';
+    } else if (/deadline|extend|last date|submission|closing|postpone|delay|reschedule|timing|cut-off|extended/.test(lowerTopic)) {
+      category = 'DEADLINE_SCHEDULE';
+    } else if (/food|lunch|dinner|breakfast|snack|refreshment|coupon|token|canteen|meal|catering|beverage/.test(lowerTopic)) {
+      category = 'FOOD_HOSPITALITY';
+    } else if (/speaker|keynote|guest|workshop|session|mentor|panel|talk|masterclass|fireside/.test(lowerTopic)) {
+      category = 'SPEAKER_WORKSHOP';
+    } else if (/winner|prize|award|trophy|certificate|valedictory|ceremony|result|shortlist|congratulation|cash/.test(lowerTopic)) {
+      category = 'AWARDS_WINNERS';
+    } else if (/register|registration|ticket|pass|passes|qr|entry|badge|slot|check-in|seat|sold out/.test(lowerTopic)) {
+      category = 'REGISTRATION_PASSES';
+    } else if (/volunteer|crew|duty|reporting|lead|task|setup|logistics|manpower|hands needed/.test(lowerTopic)) {
+      category = 'VOLUNTEER_OPS';
     }
-    if (matchingLines.length > 0) {
-      answer += `📋 **Relevant lines:**\n${matchingLines.slice(0, 15).map(l => `> ${l}`).join('\n')}`;
-    } else {
-      answer += `📋 **Document preview:**\n${lines.slice(0, 20).map(l => `> ${l}`).join('\n')}`;
+
+    let title = '';
+    let content = '';
+
+    const effectiveVenue = extractedVenue || eventLocation;
+    const effectiveTime = extractedTime || 'per scheduled schedule';
+
+    // Channel-specific generation driven by topic category and parameters
+    switch (data.channel) {
+      case 'WHATSAPP': {
+        if (category === 'WEATHER_VENUE') {
+          title = `🚨 [URGENT VENUE UPDATE] ${rawTopic} — ${eventName}`;
+          content = `🚨 *URGENT VENUE ANNOUNCEMENT* 🚨\n*${eventName.toUpperCase()}*\n\nAttention: *${audience}*\n\nPlease note an immediate operational change:\n👉 *${rawTopic}*\n\n📍 *New Location*: *${effectiveVenue}*\n⏰ *Effective*: Immediate\n\n📌 *Action Required*:\n1. Direct your team & equipment to *${effectiveVenue}* immediately.\n2. Follow on-ground volunteer marshals stationed at key corridors.\n3. Check in with your track coordinator upon arrival.\n${userNotes ? `\n📝 *Additional Note*: ${userNotes}\n` : ''}\nFor emergency logistics support, ping the Control Desk.\n— *Core Operations, ${clubName}*`;
+        } else if (category === 'DEADLINE_SCHEDULE') {
+          title = `⏳ [DEADLINE UPDATE] ${rawTopic} — ${eventName}`;
+          content = `⏳ *DEADLINE & SCHEDULE UPDATE* ⏳\n*${eventName.toUpperCase()}*\n\nHey ${audience}! 👋\n\nTake note of an important update regarding:\n🎯 *${rawTopic}*\n\n⏰ *New Cut-off / Timing*: *${effectiveTime}*\n📅 *Date*: ${eventDate}\n🌐 *Portal / Desk*: Active & accepting updates\n\n💡 *Key Guidelines*:\n• Double check team credentials and commit hash before submission.\n• Late submissions beyond the revised cutoff cannot be accommodated.\n• If facing portal timeouts, notify your track mentor immediately.\n${userNotes ? `\n📌 *Notes*: ${userNotes}\n` : ''}\nPush hard, build strong, and make it count! 🚀\n— *Organizing Committee, ${eventName}*`;
+        } else if (category === 'FOOD_HOSPITALITY') {
+          title = `🍱 [MEAL / TOKEN UPDATE] ${rawTopic} — ${eventName}`;
+          content = `🍱 *HOSPITALITY & REFRESHMENTS UPDATE* 🍱\n*${eventName.toUpperCase()}*\n\nCalling all *${audience}*! 🍔\n\nUpdate regarding: *${rawTopic}*\n\n📍 *Serving Counter / Location*: *${effectiveVenue}*\n⏰ *Serving Window*: Active now\n\n🔑 *Instructions*:\n• Present your digital event QR pass / wristband at Counter 1-4.\n• One meal token per accredited participant.\n• Veg / Non-Veg / Special dietary counters are clearly labeled.\n${userNotes ? `\n📌 *Notice*: ${userNotes}\n` : ''}\n♻️ *Eco Request*: Please dispose of trays & bottles in the recycling bins!\n— *Hospitality Team, ${clubName}*`;
+        } else if (category === 'SPEAKER_WORKSHOP') {
+          title = `🎙️ [SESSION SPOTLIGHT] ${rawTopic} — ${eventName}`;
+          content = `🎙️ *KEYNOTE & WORKSHOP SPOTLIGHT* 🎙️\n*${eventName.toUpperCase()}*\n\nExciting announcement for *${audience}*! ✨\n\nWe are thrilled to bring you:\n🌟 *${rawTopic}*\n\n📍 *Hall / Stage*: *${effectiveVenue}*\n📅 *Schedule*: ${eventDate} (${effectiveTime})\n\n🔥 *What to Expect*:\n• Deep-dive masterclass and live demos.\n• Exclusive interactive Q&A round.\n• Open networking session post-talk.\n\n⚠️ *Notice*: Seating is strictly on a first-come, first-served basis. Please take your seats 10 mins prior!\n${userNotes ? `\n💡 *Special Note*: ${userNotes}\n` : ''}\n— *Tech & Speaker Relations, ${eventName}*`;
+        } else if (category === 'AWARDS_WINNERS') {
+          title = `🏆 [VALEDICTORY & RESULTS] ${rawTopic} — ${eventName}`;
+          content = `🏆 *GRAND FINALE & AWARDS CEREMONY* 🏆\n*${eventName.toUpperCase()}*\n\nThe moment we've all been working toward is here!\n🎉 *${rawTopic}*\n\n📍 *Ceremony Hall*: *${effectiveVenue}*\n⏰ *Commencement*: ${effectiveTime}\n\n🎖️ *Agenda*:\n• Jury debrief & showcase of top innovations.\n• Announcement of Winners, Runners-up & Category Champions.\n• Distribution of Cash Prizes, Trophies & Accredited Certificates.\n\nAll ${audience.toLowerCase()} are requested to assemble in the auditorium. Let's celebrate the incredible work built this weekend! 🥂✨\n— *Executive Team, ${clubName}*`;
+        } else if (category === 'REGISTRATION_PASSES') {
+          title = `🎟️ [REGISTRATION & ENTRY] ${rawTopic} — ${eventName}`;
+          content = `🎟️ *REGISTRATION & ACCREDITATION ALERT* 🎟️\n*${eventName.toUpperCase()}*\n\nImportant update for *${audience}* regarding:\n👉 *${rawTopic}*\n\n📍 *Check-in Desk*: *${effectiveVenue}*\n⏰ *Registration Window*: ${effectiveTime}\n\n📋 *Entry Protocol*:\n• Keep your College ID and confirmation QR code ready on screen.\n• Collect your Official Kit, RFID/QR Badge & Wi-Fi credentials.\n• Once capacity is reached, walk-in requests will close.\n${userNotes ? `\n⚡ *Details*: ${userNotes}\n` : ''}\nSee you at the gates!\n— *Registrations Desk, ${eventName}*`;
+        } else if (category === 'VOLUNTEER_OPS') {
+          title = `⚡ [CREW CALL] ${rawTopic} — ${eventName}`;
+          content = `⚡ *CREW & VOLUNTEER DISPATCH* ⚡\n*${eventName.toUpperCase()}*\n\nAttention: *${audience}*\n\nPriority Task Alignment:\n🎯 *${rawTopic}*\n\n📍 *Reporting Post*: *${effectiveVenue}*\n⏰ *Immediate Reporting Time*: ${effectiveTime}\n\n📋 *Checklist*:\n• Check in with your designated Cluster Lead.\n• Collect walkie-talkie / volunteer badge.\n• Maintain strict crowd movement and monitor access points.\n${userNotes ? `\n📌 *Mission Brief*: ${userNotes}\n` : ''}\nThank you for holding the fort! Let's execute flawlessly! 💪\n— *Operations Command, ${clubName}*`;
+        } else {
+          title = `📢 [UPDATE] ${rawTopic} — ${eventName}`;
+          content = `📢 *OFFICIAL EVENT ANNOUNCEMENT* 📢\n*${eventName.toUpperCase()}*\n\nHello *${audience}*! 👋\n\nHere is an important update regarding:\n📌 *${rawTopic}*\n\n📅 *Date*: ${eventDate}\n📍 *Venue*: ${effectiveVenue}\n⏰ *Time*: ${effectiveTime}\n\n✨ *Key Highlights*:\n• Please read the instructions above and coordinate with your team leads.\n• Keep your notifications active for live rolling updates.\n• For queries or support, visit the Help Desk at ${effectiveVenue}.\n${userNotes ? `\n📝 *Note*: ${userNotes}\n` : ''}\nLet's make this edition of ${eventName} truly memorable! 🚀\n— *Organizing Committee, ${eventName} | ClubOps AI*`;
+        }
+        break;
+      }
+
+      case 'EMAIL': {
+        title = category === 'WEATHER_VENUE'
+          ? `[URGENT] Venue Update: ${rawTopic} | ${eventName}`
+          : category === 'DEADLINE_SCHEDULE'
+          ? `[NOTICE] Deadline & Schedule Extension: ${rawTopic} | ${eventName}`
+          : category === 'AWARDS_WINNERS'
+          ? `[INVITATION] Valedictory Ceremony & Results: ${rawTopic} | ${eventName}`
+          : category === 'FOOD_HOSPITALITY'
+          ? `[HOSPITALITY] Refreshment & Meal Details: ${rawTopic} | ${eventName}`
+          : `Official Update: ${rawTopic} — ${eventName}`;
+
+        content = `Dear ${audience},
+
+We are writing to share an official communication regarding "${rawTopic}" for ${eventName}, organized by ${clubName}.
+
+SUMMARY OF DETAILS:
+• Subject: ${rawTopic}
+• Date: ${eventDate}
+• Venue: ${effectiveVenue}
+• Applicable Time: ${effectiveTime}
+
+OPERATIONAL DIRECTIVES:
+1. Please review this notice carefully and align your respective schedule and deliverables accordingly.
+2. All accredited members must adhere to festival safety and campus conduct policies at all times.
+3. If this update impacts your active task or team submissions, please notify your team coordinator or mentor immediately.
+${userNotes ? `\nADDITIONAL INSTRUCTIONS:\n${userNotes}\n` : ''}
+For technical assistance or urgent queries, please reply directly or visit the Central Operations Desk situated at ${effectiveVenue}.
+
+We appreciate your cooperation and dedication toward making ${eventName} a resounding success.
+
+Warm regards,
+
+The Organizing Committee
+${eventName} | ${clubName}
+Powered by ClubOps AI Operations Hub`;
+        break;
+      }
+
+      case 'INSTAGRAM': {
+        const hashEvent = eventName.replace(/[^a-zA-Z0-9]/g, '');
+        const hashClub = clubName.replace(/[^a-zA-Z0-9]/g, '');
+        const hook = category === 'AWARDS_WINNERS'
+          ? `AND THE WINNERS ARE... 🏆✨`
+          : category === 'DEADLINE_SCHEDULE'
+          ? `MORE TIME TO BUILD! ⏳🔥`
+          : category === 'WEATHER_VENUE'
+          ? `ATTENTION HACKERS: QUICK VENUE UPDATE 🚨📍`
+          : category === 'SPEAKER_WORKSHOP'
+          ? `LEARN FROM THE BEST IN THE INDUSTRY 🎙️🚀`
+          : `BIG UPDATE YOU CANNOT MISS! ⚡🚀`;
+
+        title = `Instagram Caption: ${rawTopic}`;
+        content = `${hook}
+
+${rawTopic}! 
+
+The energy at #${hashEvent} is unmatched right now! Here is everything you need to know:
+
+📍 Where: ${effectiveVenue}
+📅 When: ${eventDate} (${effectiveTime})
+👥 Who: All ${audience.toLowerCase()}
+
+${userNotes ? `💡 ${userNotes}\n\n` : ''}Tag your team members in the comments below so no one misses out on this! 👇 Let's see that hustle!
+
+🔗 Tap the link in our bio for live schedule, bracket rankings, and live streams.
+
+.
+.
+#${hashEvent} #${hashClub} #CollegeFest #HackathonIndia #StudentInnovators #CampusLife #TechFestival #ClubOpsAI #CodeSprint #InnovationInAction #BuildTheFuture`;
+        break;
+      }
+
+      case 'NOTICE': {
+        const refNo = `REF/${clubName.substring(0, 4).toUpperCase()}/${new Date().getFullYear()}/${Math.floor(1000 + Math.random() * 9000)}`;
+        title = `CIRCULAR: ${rawTopic.toUpperCase()} — ${eventName}`;
+        content = `================================================================================
+OFFICIAL CIRCULAR / NOTICE
+DEPARTMENT OF STUDENT AFFAIRS & CAMPUS ACTIVITIES
+${clubName.toUpperCase()} — ${eventName.toUpperCase()}
+================================================================================
+Ref No: ${refNo}                                             Date: ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+
+SUBJECT: ${rawTopic.toUpperCase()}
+
+This is to notify all concerned (${audience}) that in connection with ${eventName}, the organizing committee has issued the following directives regarding "${rawTopic}":
+
+1. VENUE & TIME SCHEDULE:
+   - Primary Location: ${effectiveVenue}
+   - Applicable Schedule: ${effectiveTime}
+   - Effective Date: ${eventDate}
+
+2. MANDATORY PROTOCOL:
+   - All participants and student organizers must display their validated event accreditation cards/passes.
+   - Entry to restricted operational areas and labs is strictly monitored.
+   - Teams must complete their check-ins or submissions strictly within the specified timelines.
+
+${userNotes ? `3. SPECIAL ADMINISTRATIVE DIRECTIVES:\n   - ${userNotes}\n` : ''}
+4. ENQUIRIES:
+   In case of any discrepancies or special permissions, contact the Student Coordinator Desk at ${effectiveVenue}.
+
+By Order,
+Executive Organizing Committee, ${eventName}
+Approved by Faculty In-Charge, ${clubName}`;
+        break;
+      }
     }
 
     return {
-      answer,
-      sources: docs.slice(0, 3).map(d => ({
-        title: d.title,
-        page: 1,
-        excerpt: d.content.slice(0, 120),
-      })),
+      channel: data.channel,
+      title,
+      content,
+      targetAudience: audience,
+    };
+  }
+
+  async queryClubBrain(clubId: string, query: string) {
+    const documents = await prisma.document.findMany({ where: { clubId }, include: { chunks: true } });
+    const lowerQuery = query.toLowerCase();
+
+    if (lowerQuery.includes('budget') || lowerQuery.includes('cost') || lowerQuery.includes('money')) {
+      const budgetDocs = documents.filter(d => d.title.toLowerCase().includes('budget') || d.title.toLowerCase().includes('financial') || d.title.toLowerCase().includes('audit') || d.category === 'REPORT');
+      return {
+        answer: budgetDocs.length > 0
+          ? `Based on club documents, here are the financial insights:\n\n${budgetDocs.map(d => `📄 **${d.title}**: ${d.summary || d.chunks[0]?.content || 'No summary available'}`).join('\n\n')}`
+          : `No budget documents found. Upload financial reports to Club Brain for AI-powered analysis.`,
+        sources: budgetDocs.map(d => ({ title: d.title, page: 1, excerpt: d.summary || '' })),
+      };
+    }
+
+    const relevant = documents.filter(d =>
+      d.title.toLowerCase().includes(lowerQuery) ||
+      d.summary?.toLowerCase().includes(lowerQuery) ||
+      d.chunks.some(c => c.content.toLowerCase().includes(lowerQuery))
+    );
+
+    if (relevant.length > 0) {
+      return {
+        answer: `Found ${relevant.length} relevant document(s) for "${query}":\n\n` +
+          relevant.slice(0, 3).map(d => `📄 **${d.title}**\n${d.summary || d.chunks[0]?.content || ''}`).join('\n\n'),
+        sources: relevant.slice(0, 3).map(d => ({ title: d.title, page: 1, excerpt: d.summary || '' })),
+      };
+    }
+
+    return {
+      answer: `No documents found matching "${query}". Upload relevant documents (PDFs, DOCs) to Club Brain to enable AI-powered document search.`,
+      sources: [],
     };
   }
 }

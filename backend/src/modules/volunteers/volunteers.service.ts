@@ -3,8 +3,12 @@ import { prisma } from '../../db/prisma.js';
 export class VolunteersService {
   async getVolunteers(clubId: string, eventId?: string, teamId?: string) {
     const where: any = { clubId };
-    if (eventId) where.eventId = eventId;
-    if (teamId) where.teamId = teamId;
+    if (eventId && eventId !== 'undefined' && eventId !== 'null') {
+      where.eventId = eventId;
+    }
+    if (teamId && teamId !== 'undefined' && teamId !== 'null') {
+      where.teamId = teamId;
+    }
 
     return await prisma.volunteer.findMany({
       where,
@@ -125,7 +129,10 @@ export class VolunteersService {
     if (!task) throw new Error('Task not found');
 
     const volunteers = await prisma.volunteer.findMany({
-      where: { clubId: task.event.clubId },
+      where: {
+        clubId: task.event.clubId,
+        eventId: task.eventId,
+      },
       include: { team: true, skillRecords: true },
     });
 

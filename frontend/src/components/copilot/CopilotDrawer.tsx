@@ -1,28 +1,19 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   X, 
   Bot, 
   Send, 
   Sparkles, 
+  ShieldCheck, 
   ArrowRight, 
   Loader2,
   CheckCircle,
+  HelpCircle
 } from 'lucide-react';
 import { useEvent } from '../../context/EventContext.js';
 import { ProposedAction } from '../../types/index.js';
 import { api } from '../../services/api.js';
 import { ActionConfirmationModal } from '../common/ActionConfirmationModal.js';
-
-// Strip markdown formatting for clean display
-function stripMarkdown(text: string): string {
-  return text
-    .replace(/\*\*(.*?)\*\*/g, '$1')
-    .replace(/\*(.*?)\*/g, '$1')
-    .replace(/`{1,3}(.*?)`{1,3}/g, '$1')
-    .replace(/#{1,6}\s+/g, '')
-    .replace(/^\s*[-*+]\s/gm, '• ')
-    .trim();
-}
 
 interface CopilotDrawerProps {
   isOpen: boolean;
@@ -44,26 +35,19 @@ export const CopilotDrawer: React.FC<CopilotDrawerProps> = ({ isOpen, onClose })
   const [selectedAction, setSelectedAction] = useState<ProposedAction | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'm1',
       sender: 'assistant',
-      content: stripMarkdown(
-        `Hello! I am ClubOps Chatbot, your intelligent event operations assistant.\n\n` +
-        `You can ask me anything:\n` +
-        `• About this website: how to create tasks, add volunteers, log risks\n` +
-        `• Live operations: today's priorities, overdue deliverables, team workload, risks\n\n` +
-        `What can I help you with today?`
-      ),
+      content: `👋 Hello! I am **ClubOps Chatbot**, your assistant for this entire website and event operations.\n\n` +
+        `You can ask me **anything**:\n` +
+        `• 🌐 **About Website**: How to create tasks, add volunteers, log risks, calculate health score, or use announcements.\n` +
+        `• 📋 **Live Operations**: Ask about today's priorities, overdue deliverables, team workload, or risks.\n\n` +
+        `What can I help you with today?`,
       timestamp: 'Just now',
     },
   ]);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  // Auto-scroll to bottom whenever messages update or loading changes
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, loading]);
 
   if (!isOpen) return null;
 
@@ -98,7 +82,7 @@ export const CopilotDrawer: React.FC<CopilotDrawerProps> = ({ isOpen, onClose })
       const aiMsg: ChatMessage = {
         id: `a_${Date.now()}`,
         sender: 'assistant',
-        content: stripMarkdown(res.content),
+        content: res.content,
         proposedActions: res.proposedActions,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
@@ -131,214 +115,127 @@ export const CopilotDrawer: React.FC<CopilotDrawerProps> = ({ isOpen, onClose })
 
   return (
     <>
-      {/* Backdrop */}
-      <div className="fixed inset-0 z-50 overflow-hidden animate-fade-in"
-        style={{ background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(4px)' }}>
+      <div className="fixed inset-0 z-50 overflow-hidden bg-background/60 backdrop-blur-sm animate-fade-in">
         <div className="absolute inset-0" onClick={onClose} />
-
-        {/* Drawer Panel */}
-        <div className="absolute inset-y-0 right-0 max-w-lg w-full flex flex-col z-10 animate-scale-in"
-          style={{
-            background: 'var(--bg-card)',
-            borderLeft: '1px solid var(--border-default)',
-            boxShadow: '0 0 60px rgba(99,102,241,0.15)',
-          }}>
-
-          {/* ── Header ── */}
-          <div className="p-4 flex items-center justify-between"
-            style={{
-              background: 'linear-gradient(135deg, var(--bg-subtle) 0%, var(--bg-card) 100%)',
-              borderBottom: '1px solid var(--border-default)',
-            }}>
+        <div className="absolute inset-y-0 right-0 max-w-lg w-full bg-background-card border-l border-border shadow-2xl flex flex-col z-10 animate-scale-in">
+          {/* Header */}
+          <div className="p-4 border-b border-border flex items-center justify-between bg-background-subtle">
             <div className="flex items-center space-x-3">
-              {/* Bot Avatar */}
-              <div className="relative w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
-                style={{ background: 'linear-gradient(135deg, #6366F1, #8B5CF6, #06B6D4)', padding: '2px' }}>
-                <div className="w-full h-full rounded-[14px] flex items-center justify-center"
-                  style={{ background: 'var(--bg-card)' }}>
-                  <Bot className="w-5 h-5 text-primary-500 animate-pulse" />
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-primary-600 to-accent-cyan p-0.5 flex items-center justify-center">
+                <div className="w-full h-full bg-background-card rounded-[10px] flex items-center justify-center">
+                  <Bot className="w-5 h-5 text-accent-cyan animate-pulse" />
                 </div>
-                {/* Online dot */}
-                <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2"
-                  style={{ borderColor: 'var(--bg-card)' }} />
               </div>
-
               <div>
-                <div className="flex items-center space-x-2">
-                  <h2 className="text-sm font-heading font-bold" style={{ color: 'var(--text-primary)' }}>
-                    AI Chatbot
-                  </h2>
-                  <span className="badge badge-primary">LIVE</span>
+                <div className="flex items-center space-x-1.5">
+                  <h2 className="text-sm font-bold text-white">AI Chatbot</h2>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-primary-500/20 text-primary-300 font-mono">
+                    WEBSITE & OPS
+                  </span>
                 </div>
-                <p className="text-xs font-body mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                  {currentEvent?.name ? `Assisting: ${currentEvent.name}` : 'Website & Operations Assistant'}
+                <p className="text-xs text-slate-400">
+                  {currentEvent?.name ? `Event: ${currentEvent.name}` : 'Website & Operations Assistant'}
                 </p>
               </div>
             </div>
-
-            <button onClick={onClose}
-              className="p-2 rounded-xl transition-colors hover:bg-[var(--bg-hover)]"
-              style={{ color: 'var(--text-muted)' }}>
-              <X className="w-4 h-4" />
+            <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-white rounded-lg">
+              <X className="w-5 h-5" />
             </button>
           </div>
 
-          {/* ── Toast ── */}
+          {/* Toast Notification if action succeeded */}
           {toastMessage && (
-            <div className="px-4 py-2.5 flex items-center space-x-2 animate-fade-in text-xs font-body"
-              style={{
-                background: 'rgba(16,185,129,0.08)',
-                borderBottom: '1px solid rgba(16,185,129,0.2)',
-                color: '#10B981',
-              }}>
-              <CheckCircle className="w-4 h-4 flex-shrink-0" />
+            <div className="p-3 bg-emerald-500/10 border-b border-emerald-500/30 text-xs text-emerald-300 flex items-center space-x-2 animate-fade-in">
+              <CheckCircle className="w-4 h-4 flex-shrink-0 text-emerald-400" />
               <span>{toastMessage}</span>
             </div>
           )}
 
-          {/* ── Messages ── */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-5">
+          {/* Messages Area */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {messages.map((m) => (
-              <div key={m.id}
-                className={`flex flex-col ${m.sender === 'user' ? 'items-end' : 'items-start'}`}>
-
-                {m.sender === 'assistant' && (
-                  <div className="flex items-center space-x-1.5 mb-1.5">
-                    <div className="w-5 h-5 rounded-lg flex items-center justify-center"
-                      style={{ background: 'linear-gradient(135deg, #6366F1, #8B5CF6)' }}>
-                      <Bot className="w-3 h-3 text-white" />
-                    </div>
-                    <span className="text-2xs font-bold font-heading" style={{ color: 'var(--text-muted)' }}>
-                      AI Chatbot
-                    </span>
-                  </div>
-                )}
-
-                <div className={`max-w-[86%] rounded-2xl text-xs leading-relaxed font-body ${
-                  m.sender === 'user' ? 'rounded-br-none' : 'rounded-bl-none'
-                }`}
-                  style={m.sender === 'user' ? {
-                    background: 'linear-gradient(135deg, #6366F1, #4F46E5)',
-                    color: '#fff',
-                    padding: '0.75rem 1rem',
-                    boxShadow: '0 4px 14px rgba(99,102,241,0.35)',
-                  } : {
-                    background: 'var(--bg-subtle)',
-                    border: '1px solid var(--border-default)',
-                    color: 'var(--text-primary)',
-                    padding: '0.75rem 1rem',
-                  }}>
+              <div
+                key={m.id}
+                className={`flex flex-col ${m.sender === 'user' ? 'items-end' : 'items-start'}`}
+              >
+                <div
+                  className={`max-w-[85%] p-3.5 rounded-2xl text-xs leading-relaxed ${
+                    m.sender === 'user'
+                      ? 'bg-primary-600 text-white rounded-br-none shadow-glow'
+                      : 'bg-background-subtle border border-border text-slate-200 rounded-bl-none'
+                  }`}
+                >
                   <div className="whitespace-pre-wrap">{m.content}</div>
 
-                  {/* Action buttons */}
+                  {/* Proposed Real Backend Action Buttons */}
                   {m.proposedActions && m.proposedActions.length > 0 && (
-                    <div className="mt-3 pt-3 space-y-2"
-                      style={{ borderTop: '1px solid rgba(99,102,241,0.2)' }}>
-                      <div className="text-2xs font-bold uppercase tracking-wider flex items-center space-x-1"
-                        style={{ color: '#A78BFA' }}>
+                    <div className="mt-3 pt-3 border-t border-border/80 space-y-2">
+                      <div className="text-[10px] font-bold text-primary-300 uppercase tracking-wider flex items-center space-x-1">
                         <Sparkles className="w-3 h-3" />
-                        <span>Recommended Actions:</span>
+                        <span>Recommended Operational Actions:</span>
                       </div>
                       <div className="space-y-1.5">
                         {m.proposedActions.map((act) => (
-                          <button key={act.id} onClick={() => handleActionClick(act)}
-                            className="w-full px-3 py-2 rounded-xl text-left text-xs font-semibold font-body transition-all flex items-center justify-between group"
-                            style={{
-                              background: 'rgba(99,102,241,0.12)',
-                              border: '1px solid rgba(99,102,241,0.25)',
-                              color: '#A78BFA',
-                            }}
-                            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(99,102,241,0.22)')}
-                            onMouseLeave={e => (e.currentTarget.style.background = 'rgba(99,102,241,0.12)')}>
+                          <button
+                            key={act.id}
+                            onClick={() => handleActionClick(act)}
+                            className="w-full px-3 py-2 rounded-xl bg-primary-500/15 hover:bg-primary-500/25 border border-primary-500/30 text-left text-xs text-primary-200 font-medium transition-colors flex items-center justify-between group"
+                          >
                             <span className="truncate">{act.buttonLabel}</span>
-                            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform flex-shrink-0" />
+                            <ArrowRight className="w-3.5 h-3.5 text-primary-400 group-hover:translate-x-0.5 transition-transform" />
                           </button>
                         ))}
                       </div>
                     </div>
                   )}
                 </div>
-
-                <span className="text-2xs mt-1 px-1 font-body" style={{ color: 'var(--text-muted)' }}>
-                  {m.timestamp}
-                </span>
+                <span className="text-[10px] text-slate-500 mt-1 px-1">{m.timestamp}</span>
               </div>
             ))}
 
             {loading && (
-              <div className="flex items-start space-x-2">
-                <div className="w-5 h-5 rounded-lg flex-shrink-0 flex items-center justify-center mt-0.5"
-                  style={{ background: 'linear-gradient(135deg, #6366F1, #8B5CF6)' }}>
-                  <Bot className="w-3 h-3 text-white" />
-                </div>
-                <div className="px-4 py-3 rounded-2xl rounded-bl-none flex items-center space-x-2"
-                  style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-default)' }}>
-                  <Loader2 className="w-4 h-4 animate-spin text-primary-500" />
-                  <span className="text-xs font-body" style={{ color: 'var(--text-muted)' }}>
-                    Analyzing...
-                  </span>
-                </div>
+              <div className="flex items-center space-x-2 text-xs text-slate-400 p-2">
+                <Loader2 className="w-4 h-4 animate-spin text-primary-400" />
+                <span>Chatbot is analyzing and preparing answer...</span>
               </div>
             )}
-            <div ref={messagesEndRef} />
           </div>
 
-          {/* ── Suggestion Chips ── */}
-          <div className="px-4 py-2.5 flex items-center space-x-2 overflow-x-auto"
-            style={{ borderTop: '1px solid var(--border-default)', background: 'var(--bg-subtle)' }}>
+          {/* Suggestion Chips */}
+          <div className="px-4 py-2 border-t border-border bg-background-subtle/50 flex items-center space-x-2 overflow-x-auto">
             {chips.map((chip) => (
-              <button key={chip} onClick={() => handleSend(chip)}
-                className="flex-shrink-0 px-3 py-1.5 rounded-full text-2xs font-semibold font-body transition-all whitespace-nowrap"
-                style={{
-                  background: 'var(--bg-card)',
-                  border: '1px solid var(--border-default)',
-                  color: 'var(--text-secondary)',
-                }}
-                onMouseEnter={e => {
-                  (e.currentTarget as HTMLElement).style.borderColor = '#A78BFA';
-                  (e.currentTarget as HTMLElement).style.color = '#6366F1';
-                }}
-                onMouseLeave={e => {
-                  (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-default)';
-                  (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)';
-                }}>
+              <button
+                key={chip}
+                onClick={() => handleSend(chip)}
+                className="px-2.5 py-1 rounded-lg bg-background-hover border border-border text-[11px] text-slate-300 hover:text-white hover:border-primary-500/40 whitespace-nowrap transition-colors"
+              >
                 {chip}
               </button>
             ))}
           </div>
 
-          {/* ── Input ── */}
-          <div className="p-3 flex items-center space-x-2"
-            style={{ borderTop: '1px solid var(--border-default)', background: 'var(--bg-card)' }}>
+          {/* Input Box */}
+          <div className="p-3 border-t border-border bg-background-card flex items-center space-x-2">
             <input
               type="text"
               placeholder="Ask anything about the website, features, tasks, or event..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-              className="flex-1 rounded-xl px-3.5 py-2.5 text-xs font-body focus:outline-none"
-              style={{
-                background: 'var(--bg-subtle)',
-                border: '1.5px solid var(--border-default)',
-                color: 'var(--text-primary)',
-              }}
-              onFocus={e => (e.target.style.borderColor = '#6366F1')}
-              onBlur={e => (e.target.style.borderColor = 'var(--border-default)')}
+              className="flex-1 bg-background-subtle border border-border focus:border-primary-500 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none"
             />
             <button
               onClick={() => handleSend()}
               disabled={loading || !query.trim()}
-              className="p-2.5 rounded-xl text-white transition-all disabled:opacity-40"
-              style={{
-                background: 'linear-gradient(135deg, #6366F1, #4F46E5)',
-                boxShadow: '0 4px 14px rgba(99,102,241,0.35)',
-              }}>
+              className="p-2.5 rounded-xl bg-primary-600 hover:bg-primary-500 text-white disabled:opacity-50 transition-colors shadow-glow"
+            >
               <Send className="w-4 h-4" />
             </button>
           </div>
         </div>
       </div>
 
+      {/* Confirmation Modal */}
       <ActionConfirmationModal
         action={selectedAction}
         isOpen={confirmOpen}

@@ -42,3 +42,9 @@ scratch/
 .idea/
 .DS_Store
 Thumbs.db
+
+# WhatsApp Session Auth & Cache
+.wwebjs_auth/
+.wwebjs_cache/
+*/.wwebjs_auth/
+*/.wwebjs_cache/

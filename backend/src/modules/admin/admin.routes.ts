@@ -68,7 +68,7 @@ router.get('/table/:tableName', async (req: Request, res: Response) => {
         data = await prisma.task.findMany({ take, include: { team: true, assignee: true }, orderBy: { deadline: 'asc' } });
         break;
       case 'volunteers':
-        data = await prisma.volunteer.findMany({ take, include: { team: true }, orderBy: { name: 'asc' } });
+        data = await prisma.volunteer.findMany({ take, include: { team: true, event: { select: { id: true, name: true } }, club: { select: { id: true, name: true } } }, orderBy: { name: 'asc' } });
         break;
       case 'risks':
         data = await prisma.risk.findMany({ take, orderBy: { severity: 'desc' } });
@@ -149,6 +149,49 @@ router.post('/create/:tableName', async (req: Request, res: Response) => {
         });
         break;
       }
+      case 'events': {
+        result = await prisma.event.create({
+          data: {
+            clubId: payload.clubId || defaultClub?.id || '',
+            name: payload.name || 'Untitled Event',
+            type: payload.type || 'General',
+            date: payload.date ? new Date(payload.date) : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+            location: payload.location || 'Campus Center',
+            budget: Number(payload.budget) || 0,
+            status: payload.status || 'PLANNING',
+            healthScore: Number(payload.healthScore) || 90,
+            description: payload.description || '',
+          },
+        });
+        break;
+      }
+      case 'meetings': {
+        result = await prisma.meeting.create({
+          data: {
+            eventId: payload.eventId || defaultEvent?.id || '',
+            title: payload.title || 'General Sync',
+            location: payload.location || 'Discord / Main Hall',
+            transcript: payload.transcript || 'Meeting discussion recorded.',
+            summary: payload.summary || 'Summary notes.',
+          },
+        });
+        break;
+      }
+      case 'documents': {
+        result = await prisma.document.create({
+          data: {
+            clubId: payload.clubId || defaultClub?.id || '',
+            eventId: payload.eventId || defaultEvent?.id || null,
+            title: payload.title || 'Untitled Document',
+            fileUrl: payload.fileUrl || '/uploads/doc.pdf',
+            fileType: payload.fileType || 'PDF',
+            fileSize: Number(payload.fileSize) || 40960,
+            category: payload.category || 'GUIDELINE',
+            summary: payload.summary || '',
+          },
+        });
+        break;
+      }
       default:
         return res.status(400).json({ error: `Direct creation not supported for ${tableName}` });
     }
@@ -179,6 +222,12 @@ router.patch('/update/:tableName/:id', async (req: Request, res: Response) => {
       case 'events':
         result = await prisma.event.update({ where: { id }, data: updates });
         break;
+      case 'meetings':
+        result = await prisma.meeting.update({ where: { id }, data: updates });
+        break;
+      case 'documents':
+        result = await prisma.document.update({ where: { id }, data: updates });
+        break;
       default:
         return res.status(400).json({ error: `Update not supported for ${tableName}` });
     }
@@ -203,6 +252,20 @@ router.delete('/delete/:tableName/:id', async (req: Request, res: Response) => {
         break;
       case 'risks':
         await prisma.risk.delete({ where: { id } });
+        break;
+      case 'events':
+        await prisma.$transaction(async (tx) => {
+          await tx.document.deleteMany({ where: { eventId: id } });
+          await tx.activityLog.deleteMany({ where: { eventId: id } });
+          await tx.volunteer.deleteMany({ where: { eventId: id } });
+          await tx.event.delete({ where: { id } });
+        });
+        break;
+      case 'meetings':
+        await prisma.meeting.delete({ where: { id } });
+        break;
+      case 'documents':
+        await prisma.document.delete({ where: { id } });
         break;
       default:
         return res.status(400).json({ error: `Delete not supported for ${tableName}` });

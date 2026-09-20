@@ -66,6 +66,16 @@ export class EventsController {
       return res.status(400).json({ error: err.message });
     }
   }
+
+  async deleteEvent(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      await eventsService.deleteEvent(id);
+      return res.json({ success: true, message: 'Event deleted successfully.', deletedId: id });
+    } catch (err: any) {
+      return res.status(400).json({ error: err.message });
+    }
+  }
 }
 
 export const eventsController = new EventsController();

@@ -113,10 +113,12 @@ export class AnnouncementsService {
 
     let emailsSent = 0;
     let emailsFailed = 0;
+    let whatsappSent = 0;
+    let whatsappFailed = 0;
     const errors: string[] = [];
 
-    // 4. Send real emails if channel is EMAIL or if user requested broadcast
-    if (data.channel === 'EMAIL' || data.channel === 'WHATSAPP') {
+    // 4a. Send real emails only if channel is EMAIL
+    if (data.channel === 'EMAIL') {
       const transporter = this.getEmailTransporter();
 
       if (transporter && volunteerRecipients.length > 0) {
@@ -156,25 +158,117 @@ export class AnnouncementsService {
       }
     }
 
-    // 5. Broadcast in real time via WebSocket
+    // 4b. Send WhatsApp messages if channel is WHATSAPP — use the live WhatsApp service
+    if (data.channel === 'WHATSAPP') {
+      const phoneNumbers = volunteerRecipients
+        .filter(v => Boolean(v.phone))
+        .map(v => (v.phone as string).replace(/[^0-9]/g, ''))
+        .filter(p => p.length >= 10);
+
+      if (phoneNumbers.length > 0) {
+        try {
+          // Dynamically import whatsapp service to avoid circular deps
+          const { whatsappService } = await import('../whatsapp/whatsapp.service.js');
+          const waStatus = whatsappService.getStatus();
+
+          if (waStatus.status === 'CONNECTED') {
+            const fullText = `*${data.title}*\n\n${data.content}`;
+            const result = await whatsappService.sendBroadcast(phoneNumbers, fullText);
+            whatsappSent = result.sentCount || 0;
+            whatsappFailed = result.failedCount || 0;
+          }
+          // If not connected, skip — frontend will handle via the QR modal
+        } catch (err: any) {
+          errors.push(`WhatsApp broadcast error: ${err.message}`);
+        }
+      }
+    }
+
+    // 5. Generate WhatsApp links (always useful as fallback)
+    const encodedText = encodeURIComponent(`*${data.title}*\n\n${data.content}`);
+    const whatsappBroadcastUrl = `https://api.whatsapp.com/send?text=${encodedText}`;
+    const phoneRecipients = volunteerRecipients
+      .filter(v => Boolean(v.phone))
+      .map(v => {
+        const cleanPhone = (v.phone || '').replace(/[^0-9]/g, '');
+        return {
+          name: v.name,
+          phone: v.phone,
+          whatsappUrl: `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedText}`,
+        };
+      });
+
+    // 6. Broadcast in real time via WebSocket
     realtimeHub.broadcastToEvent(data.eventId, {
       type: 'ANNOUNCEMENT_BROADCAST',
       payload: {
         ...announcement,
         emailsSent,
         recipientCount: volunteerRecipients.length,
+        whatsappBroadcastUrl,
       },
     });
 
     return {
       ...announcement,
+      whatsappBroadcastUrl,
+      phoneRecipients,
       deliverySummary: {
         totalRecipients: volunteerRecipients.length,
         emailsSent,
         emailsFailed,
+        whatsappSent,
+        whatsappFailed,
         errors: errors.slice(0, 3),
+        whatsappBroadcastUrl,
+        phoneRecipientsCount: phoneRecipients.length,
       },
     };
+  }
+
+  async updateAnnouncement(id: string, data: {
+    title?: string;
+    content?: string;
+    channel?: string;
+    targetAudience?: string;
+  }) {
+    const existing = await prisma.announcement.findUnique({ where: { id } });
+    if (!existing) {
+      throw new Error(`Announcement with id ${id} not found`);
+    }
+
+    const updated = await prisma.announcement.update({
+      where: { id },
+      data: {
+        ...(data.title !== undefined && { title: data.title }),
+        ...(data.content !== undefined && { content: data.content }),
+        ...(data.channel !== undefined && { channel: data.channel }),
+        ...(data.targetAudience !== undefined && { targetAudience: data.targetAudience }),
+      },
+    });
+
+    realtimeHub.broadcastToEvent(updated.eventId, {
+      type: 'ANNOUNCEMENT_UPDATED',
+      payload: updated,
+    });
+
+    return updated;
+  }
+
+  async deleteAnnouncement(id: string) {
+    const existing = await prisma.announcement.findUnique({ where: { id } });
+    if (!existing) {
+      throw new Error(`Announcement with id ${id} not found`);
+    }
+
+    await prisma.announcement.delete({ where: { id } });
+
+    realtimeHub.broadcastToEvent(existing.eventId, {
+      type: 'ANNOUNCEMENT_DELETED',
+      payload: { id, eventId: existing.eventId },
+    });
+
+    return { success: true, id };
   }
 }
 

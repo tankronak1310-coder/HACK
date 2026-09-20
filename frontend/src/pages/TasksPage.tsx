@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   CheckSquare, 
   Plus, 
@@ -13,19 +13,28 @@ import {
   User, 
   ArrowRight,
   X,
-  Loader2
+  Loader2,
+  Trash2,
+  Layers
 } from 'lucide-react';
 import { useEvent } from '../context/EventContext.js';
 import { Task } from '../types/index.js';
 import { api } from '../services/api.js';
 
 export const TasksPage: React.FC = () => {
-  const { currentEvent, refreshEvent } = useEvent();
+  const { currentEvent, events, setCurrentEvent, refreshEvent } = useEvent();
   const [view, setView] = useState<'KANBAN' | 'LIST' | 'TIMELINE'>('KANBAN');
   const [search, setSearch] = useState('');
   const [selectedTeam, setSelectedTeam] = useState<string>('ALL');
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Auto-select first event if none selected
+  useEffect(() => {
+    if (!currentEvent && events && events.length > 0) {
+      setCurrentEvent(events[0]);
+    }
+  }, [currentEvent, events]);
 
   // New task form
   const [newTask, setNewTask] = useState({
@@ -41,6 +50,12 @@ export const TasksPage: React.FC = () => {
   const tasks: Task[] = currentEvent?.tasks || [];
   const teams = currentEvent?.club?.teams || [];
 
+  // Check if a task with the same title already exists
+  const isDuplicateTitle = Boolean(
+    newTask.title.trim() &&
+    tasks.some(t => t.title.trim().toLowerCase() === newTask.title.trim().toLowerCase())
+  );
+
   const handleStatusChange = async (taskId: string, newStatus: string) => {
     try {
       await api.updateTask(taskId, { status: newStatus });
@@ -52,14 +67,37 @@ export const TasksPage: React.FC = () => {
     }
   };
 
+  const handleDeleteTask = async (taskId: string, taskTitle: string) => {
+    if (!window.confirm(`Are you sure you want to delete task "${taskTitle}"?`)) return;
+    try {
+      await api.deleteTask(taskId);
+      setToastMessage(`🗑️ Task "${taskTitle}" deleted successfully.`);
+      refreshEvent();
+      setTimeout(() => setToastMessage(null), 3000);
+    } catch (err: any) {
+      console.error(err);
+      setToastMessage(`❌ Failed to delete task: ${err.message || 'Error'}`);
+      setTimeout(() => setToastMessage(null), 4000);
+    }
+  };
+
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentEvent || !newTask.title.trim()) return;
+    const trimmedTitle = newTask.title.trim();
+    if (!currentEvent || !trimmedTitle) return;
+
+    if (isDuplicateTitle) {
+      setToastMessage(`⚠️ A task named "${trimmedTitle}" already exists. Please choose a unique name.`);
+      setTimeout(() => setToastMessage(null), 4000);
+      return;
+    }
+
     setCreating(true);
     try {
       await api.createTask({
         eventId: currentEvent.id,
         ...newTask,
+        title: trimmedTitle,
         teamId: newTask.teamId || undefined,
       });
       setCreateModalOpen(false);
@@ -71,11 +109,13 @@ export const TasksPage: React.FC = () => {
         teamId: '',
         estimatedHours: 4,
       });
-      setToastMessage('New operational task created!');
+      setToastMessage('✅ New operational task created!');
       refreshEvent();
       setTimeout(() => setToastMessage(null), 4000);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setToastMessage(`❌ ${err.message || 'Failed to create task'}`);
+      setTimeout(() => setToastMessage(null), 5000);
     } finally {
       setCreating(false);
     }
@@ -91,116 +131,144 @@ export const TasksPage: React.FC = () => {
   const columns: ('TODO' | 'IN_PROGRESS' | 'BLOCKED' | 'DONE')[] = ['TODO', 'IN_PROGRESS', 'BLOCKED', 'DONE'];
 
   return (
-    <div className="space-y-5 pb-12 animate-fade-in">
+    <div className="space-y-6 pb-12">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4"
-        style={{ borderBottom: '1px solid var(--border-default)' }}>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border">
         <div>
-          <div className="flex items-center space-x-2 mb-1">
+          <div className="flex items-center space-x-3 flex-wrap gap-y-2">
             <span className="live-pulse" />
-            <h1 className="text-xl font-heading font-black flex items-center space-x-2.5" style={{ color: 'var(--text-primary)' }}>
-              <CheckSquare className="w-5 h-5" style={{ color: '#818CF8' }} />
-              <span>Tasks &amp; <span className="text-gradient">Roadmap</span> Execution</span>
+            <h1 className="text-xl font-bold text-white flex items-center space-x-2">
+              <CheckSquare className="w-5 h-5 text-primary-400" />
+              <span>Tasks & Roadmap Execution</span>
             </h1>
+            {events.length > 0 && (
+              <div className="flex items-center space-x-1.5 bg-background-card border border-border px-2.5 py-1 rounded-xl">
+                <Layers className="w-3.5 h-3.5 text-primary-400" />
+                <select
+                  value={currentEvent?.id || ''}
+                  onChange={(e) => {
+                    const chosen = events.find(ev => ev.id === e.target.value);
+                    if (chosen) setCurrentEvent(chosen);
+                  }}
+                  className="bg-transparent text-xs font-semibold text-slate-200 focus:outline-none cursor-pointer"
+                >
+                  {events.map((ev) => (
+                    <option key={ev.id} value={ev.id} className="bg-background-card text-white">
+                      {ev.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
-          <p className="text-xs font-body" style={{ color: 'var(--text-muted)' }}>
+          <p className="text-xs text-slate-400 mt-0.5">
             Manage deliverables, assignees, deadlines, and dependencies across workstreams.
           </p>
         </div>
 
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-3">
           {/* View Switcher */}
-          <div className="flex items-center p-1 rounded-xl" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)' }}>
-            {[
-              { key: 'KANBAN', icon: Columns, label: 'Kanban' },
-              { key: 'LIST',   icon: List,    label: 'List' },
-              { key: 'TIMELINE', icon: Clock, label: 'Timeline' },
-            ].map(({ key, icon: Icon, label }) => (
-              <button key={key} onClick={() => setView(key as any)}
-                className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all"
-                style={view === key ? {
-                  background: 'linear-gradient(135deg,#6366F1,#4F46E5)',
-                  color: '#fff',
-                  boxShadow: '0 2px 8px rgba(99,102,241,0.35)',
-                } : { color: 'var(--text-muted)' }}>
-                <Icon className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">{label}</span>
-              </button>
-            ))}
+          <div className="flex items-center bg-background-card border border-border p-1 rounded-xl">
+            <button
+              onClick={() => setView('KANBAN')}
+              className={`p-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-colors ${
+                view === 'KANBAN' ? 'bg-primary-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Columns className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Kanban</span>
+            </button>
+            <button
+              onClick={() => setView('LIST')}
+              className={`p-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-colors ${
+                view === 'LIST' ? 'bg-primary-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <List className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">List</span>
+            </button>
+            <button
+              onClick={() => setView('TIMELINE')}
+              className={`p-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-colors ${
+                view === 'TIMELINE' ? 'bg-primary-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Timeline</span>
+            </button>
           </div>
 
-          <button onClick={() => setCreateModalOpen(true)}
-            className="flex items-center space-x-1.5 px-4 py-2 rounded-xl text-white text-xs font-bold transition-all"
-            style={{
-              background: 'linear-gradient(135deg,#6366F1,#4F46E5)',
-              boxShadow: '0 4px 14px rgba(99,102,241,0.4)',
-              fontFamily: 'Outfit',
-            }}>
+          <button
+            onClick={() => setCreateModalOpen(true)}
+            className="px-4 py-2 rounded-xl bg-primary-600 hover:bg-primary-500 text-white font-bold text-xs shadow-glow transition-all flex items-center space-x-1.5"
+          >
             <Plus className="w-4 h-4" />
-            <span>+ New Task</span>
+            <span>New Task</span>
           </button>
         </div>
       </div>
 
       {toastMessage && (
-        <div className="p-3.5 rounded-xl text-xs flex items-center space-x-2 animate-fade-in"
-          style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)', color: '#6EE7B7' }}>
-          <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-          <span className="font-body">{toastMessage}</span>
+        <div className="p-3.5 bg-emerald-500/15 border border-emerald-500/30 rounded-2xl text-xs text-emerald-300 flex items-center space-x-2 animate-fade-in">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+          <span>{toastMessage}</span>
         </div>
       )}
 
-      {/* Empty states */}
+      {/* No event selected */}
       {!currentEvent && (
         <div className="flex flex-col items-center justify-center py-24 space-y-3 text-center">
-          <CheckSquare className="w-10 h-10" style={{ color: 'var(--text-muted)' }} />
-          <p className="font-semibold font-heading" style={{ color: 'var(--text-secondary)' }}>No event selected</p>
-          <p className="text-xs font-body" style={{ color: 'var(--text-muted)' }}>Select an event from the navbar to view its tasks and roadmap.</p>
+          <CheckSquare className="w-10 h-10 text-slate-600" />
+          <p className="text-slate-400 font-semibold">No event selected</p>
+          <p className="text-xs text-slate-500">Select an event from the sidebar to view its tasks and roadmap.</p>
         </div>
       )}
 
+      {/* Event selected but no tasks yet */}
       {currentEvent && tasks.length === 0 && (
         <div className="flex flex-col items-center justify-center py-20 space-y-3 text-center">
-          <CheckSquare className="w-10 h-10" style={{ color: 'var(--text-muted)' }} />
-          <p className="font-semibold font-heading" style={{ color: 'var(--text-primary)' }}>No tasks for "{currentEvent.name}" yet</p>
-          <p className="text-xs font-body" style={{ color: 'var(--text-muted)' }}>
-            Click <span style={{ color: '#818CF8', fontWeight: 700 }}>+ New Task</span> to add the first deliverable.
-          </p>
+          <CheckSquare className="w-10 h-10 text-slate-600" />
+          <p className="text-slate-300 font-semibold">No tasks for "{currentEvent.name}" yet</p>
+          <p className="text-xs text-slate-500">Click <span className="text-primary-400 font-bold">+ New Task</span> to add the first deliverable for this event.</p>
         </div>
       )}
 
-      {/* Filter Bar */}
+      {/* Filter Bar — only show when there are tasks */}
       {currentEvent && tasks.length > 0 && (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="relative w-full sm:w-72">
-            <Search className="w-4 h-4 absolute left-3.5 top-2.5" style={{ color: 'var(--text-muted)' }} />
-            <input type="text" placeholder="Filter tasks by title or tag..."
-              value={search} onChange={e => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-xl text-xs font-body focus:outline-none"
-              style={{
-                background: 'var(--bg-subtle)',
-                border: '1px solid var(--border-default)',
-                color: 'var(--text-primary)',
-              }} />
-          </div>
+            <div className="relative w-full sm:w-80">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-2.5" />
+              <input
+                type="text"
+                placeholder="Filter tasks by title or tag..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full bg-background-subtle border border-border focus:border-primary-500 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none"
+              />
+            </div>
 
-          <div className="flex items-center space-x-2 overflow-x-auto">
-            {[{ id: 'ALL', label: 'All Teams' }, ...teams.map(tm => ({ id: tm.id, label: tm.name.split(' ')[0] }))].map(({ id, label }) => (
-              <button key={id} onClick={() => setSelectedTeam(id)}
-                className="px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all"
-                style={selectedTeam === id ? {
-                  background: 'linear-gradient(135deg,#6366F1,#4F46E5)',
-                  color: '#fff', boxShadow: '0 2px 8px rgba(99,102,241,0.3)',
-                } : {
-                  background: 'var(--bg-card)',
-                  border: '1px solid var(--border-default)',
-                  color: 'var(--text-secondary)',
-                }}>
-                {label}
+            <div className="flex items-center space-x-2 w-full sm:w-auto overflow-x-auto">
+              <button
+                onClick={() => setSelectedTeam('ALL')}
+                className={`px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap ${
+                  selectedTeam === 'ALL' ? 'bg-primary-600 text-white' : 'bg-background-card border border-border text-slate-400'
+                }`}
+              >
+                All Teams
               </button>
-            ))}
+              {teams.map((tm) => (
+                <button
+                  key={tm.id}
+                  onClick={() => setSelectedTeam(tm.id)}
+                  className={`px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap ${
+                    selectedTeam === tm.id ? 'bg-primary-600 text-white' : 'bg-background-card border border-border text-slate-400'
+                  }`}
+                >
+                  {tm.name.split(' ')[0]}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
       )}
 
       {/* VIEW 1: KANBAN BOARD */}
@@ -208,106 +276,67 @@ export const TasksPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
           {columns.map((col) => {
             const colTasks = filteredTasks.filter(t => t.status === col);
-            const colColors: Record<string, { label: string; dot: string; count: string }> = {
-              'TODO':        { label: '#8892B0', dot: '#818CF8', count: 'rgba(99,102,241,0.12)' },
-              'IN_PROGRESS': { label: '#8892B0', dot: '#67E8F9', count: 'rgba(6,182,212,0.12)' },
-              'BLOCKED':     { label: '#8892B0', dot: '#F87171', count: 'rgba(244,63,94,0.12)' },
-              'DONE':        { label: '#8892B0', dot: '#6EE7B7', count: 'rgba(16,185,129,0.12)' },
-            };
-            const cc = colColors[col];
             return (
-              <div key={col} className="flex flex-col space-y-3">
-                {/* Column Header */}
-                <div className="flex items-center justify-between px-1">
-                  <div className="flex items-center space-x-2">
-                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: cc.dot }} />
-                    <span className="text-xs font-bold uppercase tracking-widest font-body" style={{ color: cc.label }}>
-                      {col.replace('_', ' ')}
-                    </span>
-                  </div>
-                  <span className="text-xs font-bold font-mono px-2 py-0.5 rounded-full" style={{ background: cc.count, color: cc.label }}>
+              <div key={col} className="bg-background-card/70 border border-border rounded-3xl p-4 space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-border/80">
+                  <span className="text-xs font-bold text-white uppercase tracking-wider">{col.replace('_', ' ')}</span>
+                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-background-subtle text-slate-300">
                     {colTasks.length}
                   </span>
                 </div>
 
-                {/* Cards */}
-                <div className="space-y-2.5 max-h-[calc(100vh-18rem)] overflow-y-auto pr-0.5">
-                  {colTasks.map((t) => {
-                    const priorityStyle: Record<string, { bg: string; color: string }> = {
-                      CRITICAL: { bg: 'rgba(244,63,94,0.15)',   color: '#F87171' },
-                      HIGH:     { bg: 'rgba(251,146,60,0.15)',  color: '#FDBA74' },
-                      MEDIUM:   { bg: 'rgba(251,191,36,0.15)',  color: '#FDE68A' },
-                      LOW:      { bg: 'rgba(148,163,184,0.12)', color: '#94A3B8' },
-                    };
-                    const ps = priorityStyle[t.priority] || priorityStyle.MEDIUM;
-                    const teamShort = t.team?.name ? t.team.name.split(' ').slice(0, 2).join(' & ') : 'General';
+                <div className="space-y-2.5 max-h-[calc(100vh-20rem)] overflow-y-auto pr-1">
+                  {colTasks.map((t) => (
+                    <div
+                      key={t.id}
+                      className="p-3.5 rounded-2xl bg-background-subtle border border-border hover:border-border-highlight transition-all space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-mono text-primary-400 font-semibold truncate max-w-[120px]">
+                          {t.team?.name || 'General'}
+                        </span>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                          t.priority === 'CRITICAL' ? 'bg-rose-500/20 text-rose-300' : 'bg-primary-500/20 text-primary-300'
+                        }`}>
+                          {t.priority}
+                        </span>
+                      </div>
+                      <div className="text-xs font-bold text-white leading-snug">{t.title}</div>
 
-                    return (
-                      <div key={t.id} className="p-4 rounded-2xl transition-all group cursor-default"
-                        style={{
-                          background: 'var(--bg-card)',
-                          border: '1px solid var(--border-default)',
-                          boxShadow: 'var(--card-shadow)',
-                        }}
-                        onMouseEnter={e => {
-                          (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-hi)';
-                          (e.currentTarget as HTMLElement).style.boxShadow = 'var(--card-hover-shadow)';
-                          (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)';
-                        }}
-                        onMouseLeave={e => {
-                          (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-default)';
-                          (e.currentTarget as HTMLElement).style.boxShadow = 'var(--card-shadow)';
-                          (e.currentTarget as HTMLElement).style.transform = 'none';
-                        }}>
-                        {/* Team + Priority row */}
-                        <div className="flex items-center justify-between mb-2.5">
-                          <span className="text-2xs font-semibold truncate max-w-[120px] font-body" style={{ color: 'var(--text-muted)' }}>
-                            {teamShort}
-                          </span>
-                          <span className="text-2xs font-bold px-1.5 py-0.5 rounded font-mono"
-                            style={{ background: ps.bg, color: ps.color }}>
-                            {t.priority}
-                          </span>
-                        </div>
+                      <div className="pt-2 border-t border-white/5 flex items-center justify-between text-[10px] text-slate-400">
+                        <span>{new Date(t.deadline).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
+                        <span className="text-slate-300 truncate max-w-[80px]">
+                          {t.assignee?.name || 'Unassigned'}
+                        </span>
+                      </div>
 
-                        {/* Title */}
-                        <div className="text-xs font-bold leading-snug mb-3 font-heading" style={{ color: 'var(--text-primary)' }}>
-                          {t.title}
-                        </div>
-
-                        {/* Date + Assignee */}
-                        <div className="flex items-center justify-between text-2xs font-body" style={{ color: 'var(--text-muted)' }}>
-                          <span>{new Date(t.deadline).toLocaleDateString([], { day: 'numeric', month: 'short' })}</span>
-                          <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }} className="truncate max-w-[80px]">
-                            {t.assignee?.name || 'Unassigned'}
-                          </span>
-                        </div>
-
-                        {/* Move buttons */}
-                        <div className="mt-2.5 pt-2.5 flex items-center justify-between"
-                          style={{ borderTop: '1px solid var(--border-subtle)' }}>
-                          <span className="text-2xs font-body" style={{ color: 'var(--text-muted)' }}>Move:</span>
-                          <div className="flex space-x-1">
-                            {columns.filter(c => c !== col).map(targetCol => (
-                              <button key={targetCol}
-                                onClick={() => handleStatusChange(t.id, targetCol)}
-                                className="text-2xs font-mono font-bold px-1.5 py-0.5 rounded transition-all"
-                                style={{ background: 'var(--bg-hover)', color: 'var(--text-muted)' }}
-                                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(99,102,241,0.2)'; (e.currentTarget as HTMLElement).style.color = '#818CF8'; }}
-                                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'; }}>
-                                {targetCol === 'IN_PROGRESS' ? 'PROG' : targetCol}
-                              </button>
-                            ))}
-                          </div>
+                      {/* Quick Status Shift Selector & Actions */}
+                      <div className="pt-2 flex items-center justify-between text-[10px]">
+                        <span className="text-slate-500">Move:</span>
+                        <div className="flex items-center space-x-1">
+                          {columns.filter(c => c !== col).map((targetCol) => (
+                            <button
+                              key={targetCol}
+                              onClick={() => handleStatusChange(t.id, targetCol)}
+                              className="px-1.5 py-0.5 rounded bg-background-hover hover:bg-primary-600/30 text-slate-400 hover:text-white transition-colors"
+                            >
+                              {targetCol === 'IN_PROGRESS' ? 'PROG' : targetCol}
+                            </button>
+                          ))}
+                          <button
+                            onClick={() => handleDeleteTask(t.id, t.title)}
+                            title="Delete task"
+                            className="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors ml-1"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
                         </div>
                       </div>
-                    );
-                  })}
+                    </div>
+                  ))}
 
                   {colTasks.length === 0 && (
-                    <div className="py-10 text-center text-xs font-body" style={{ color: 'var(--text-muted)' }}>
-                      No tasks
-                    </div>
+                    <div className="py-8 text-center text-xs text-slate-500">No tasks</div>
                   )}
                 </div>
               </div>
@@ -329,6 +358,7 @@ export const TasksPage: React.FC = () => {
                   <th className="p-4">Status</th>
                   <th className="p-4">Assignee</th>
                   <th className="p-4">Deadline</th>
+                  <th className="p-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -357,6 +387,15 @@ export const TasksPage: React.FC = () => {
                     </td>
                     <td className="p-4 text-slate-300">{t.assignee?.name || 'Unassigned'}</td>
                     <td className="p-4 text-slate-400">{new Date(t.deadline).toLocaleDateString()}</td>
+                    <td className="p-4 text-right">
+                      <button
+                        onClick={() => handleDeleteTask(t.id, t.title)}
+                        title="Delete task"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -365,33 +404,23 @@ export const TasksPage: React.FC = () => {
         </div>
       )}
 
-      {/* VIEW 3: TIMELINE — Chronological Event Timeline */}
+      {/* VIEW 3: TIMELINE — Tasks & Deliverables Roadmap */}
       {currentEvent && tasks.length > 0 && view === 'TIMELINE' && (() => {
         const now = new Date();
 
-        // Build unified timeline entries from all event data
+        // Build unified roadmap entries from operational tasks and deliverables
         const entries: {
           date: Date;
           label: string;
           sublabel?: string;
-          type: 'event_created' | 'task' | 'meeting' | 'risk' | 'event_day' | 'event_end';
+          type: 'task' | 'meeting' | 'risk';
           status?: string;
           priority?: string;
           isToday?: boolean;
           isPast?: boolean;
         }[] = [];
 
-        // Event created
-        if (currentEvent.createdAt) {
-          entries.push({
-            date: new Date(currentEvent.createdAt),
-            label: `Event Created: "${currentEvent.name}"`,
-            sublabel: `Type: ${currentEvent.type} · Location: ${currentEvent.location}`,
-            type: 'event_created',
-          });
-        }
-
-        // All task deadlines
+        // All task deliverables & deadlines
         tasks.forEach(t => {
           entries.push({
             date: new Date(t.deadline),
@@ -425,34 +454,13 @@ export const TasksPage: React.FC = () => {
           });
         });
 
-        // Event day
-        entries.push({
-          date: new Date(currentEvent.date),
-          label: `🎯 EVENT DAY — ${currentEvent.name}`,
-          sublabel: currentEvent.location,
-          type: 'event_day',
-        });
-
-        // Event end (if provided)
-        if (currentEvent.endDate) {
-          entries.push({
-            date: new Date(currentEvent.endDate),
-            label: `🏁 Event Ends — ${currentEvent.name}`,
-            sublabel: 'Wrap-up & post-event activities begin',
-            type: 'event_end',
-          });
-        }
-
         // Sort all entries chronologically
         entries.sort((a, b) => a.date.getTime() - b.date.getTime());
 
         const typeConfig: Record<string, { color: string; dot: string; badge: string }> = {
-          event_created: { color: 'text-sky-300', dot: 'bg-sky-500', badge: 'bg-sky-500/20 text-sky-300 border-sky-500/40' },
-          task:          { color: 'text-white',   dot: 'bg-primary-500', badge: 'bg-primary-500/20 text-primary-300 border-primary-500/40' },
-          meeting:       { color: 'text-violet-300', dot: 'bg-violet-500', badge: 'bg-violet-500/20 text-violet-300 border-violet-500/40' },
-          risk:          { color: 'text-amber-300', dot: 'bg-amber-500', badge: 'bg-amber-500/20 text-amber-300 border-amber-500/40' },
-          event_day:     { color: 'text-emerald-300', dot: 'bg-emerald-500', badge: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' },
-          event_end:     { color: 'text-rose-300', dot: 'bg-rose-500', badge: 'bg-rose-500/20 text-rose-300 border-rose-500/40' },
+          task:    { color: 'text-white',   dot: 'bg-primary-500', badge: 'bg-primary-500/20 text-primary-300 border-primary-500/40' },
+          meeting: { color: 'text-violet-300', dot: 'bg-violet-500', badge: 'bg-violet-500/20 text-violet-300 border-violet-500/40' },
+          risk:    { color: 'text-amber-300', dot: 'bg-amber-500', badge: 'bg-amber-500/20 text-amber-300 border-amber-500/40' },
         };
 
         const statusBadge = (status?: string, priority?: string) => {
@@ -483,15 +491,13 @@ export const TasksPage: React.FC = () => {
             {/* Header */}
             <div className="flex items-center justify-between pb-4 border-b border-border">
               <div>
-                <h3 className="text-sm font-bold text-white">{currentEvent.name} — Event Timeline</h3>
-                <p className="text-[11px] text-slate-400 mt-0.5">{entries.length} key dates · sorted chronologically</p>
+                <h3 className="text-sm font-bold text-white">Tasks & Deliverables Roadmap</h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">{entries.length} roadmap items · sorted chronologically</p>
               </div>
               <div className="flex items-center gap-3 text-[10px]">
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-sky-500 inline-block"/>Created</span>
                 <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary-500 inline-block"/>Tasks</span>
                 <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-violet-500 inline-block"/>Meetings</span>
                 <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500 inline-block"/>Risks</span>
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"/>Event Day</span>
               </div>
             </div>
 
@@ -504,7 +510,6 @@ export const TasksPage: React.FC = () => {
                 {entries.map((entry, idx) => {
                   const cfg = typeConfig[entry.type] || typeConfig.task;
                   const isPast = entry.date < now;
-                  const isEventDay = entry.type === 'event_day';
                   const isTodayLine = todayIdx === idx;
 
                   return (
@@ -519,22 +524,20 @@ export const TasksPage: React.FC = () => {
                       )}
 
                       <div className={`relative flex items-start gap-4 px-1 py-2.5 rounded-2xl transition-all ${
-                        isEventDay ? 'bg-emerald-500/8 border border-emerald-500/20' :
                         isPast ? 'opacity-60' : 'hover:bg-background-subtle/60'
                       }`}>
                         {/* Dot */}
                         <div className={`relative z-10 w-9 h-9 rounded-full flex items-center justify-center shrink-0 border-2 ${
-                          isEventDay ? 'border-emerald-500 bg-emerald-500/20' :
                           isPast && entry.type === 'task' && entry.status === 'DONE' ? 'border-emerald-500 bg-emerald-500/20' :
                           `border-border bg-background-subtle`
                         }`}>
-                          <div className={`w-2.5 h-2.5 rounded-full ${cfg.dot} ${isPast && entry.type !== 'event_day' ? 'opacity-50' : ''}`} />
+                          <div className={`w-2.5 h-2.5 rounded-full ${cfg.dot} ${isPast ? 'opacity-50' : ''}`} />
                         </div>
 
                         {/* Content */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-2 flex-wrap">
-                            <span className={`text-xs font-bold leading-snug ${isEventDay ? 'text-emerald-300 text-sm' : cfg.color} ${isPast && entry.status !== 'DONE' ? 'line-through opacity-70' : ''}`}>
+                            <span className={`text-xs font-bold leading-snug ${cfg.color} ${isPast && entry.status !== 'DONE' ? 'line-through opacity-70' : ''}`}>
                               {entry.label}
                             </span>
                             <div className="flex items-center gap-1.5 shrink-0">
@@ -579,8 +582,16 @@ export const TasksPage: React.FC = () => {
                   placeholder="e.g. Confirm 50kVA backup diesel generator"
                   value={newTask.title}
                   onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
-                  className="w-full bg-background-subtle border border-border focus:border-primary-500 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none"
+                  className={`w-full bg-background-subtle border rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none ${
+                    isDuplicateTitle ? 'border-rose-500/80 focus:border-rose-500' : 'border-border focus:border-primary-500'
+                  }`}
                 />
+                {isDuplicateTitle && (
+                  <p className="text-[11px] text-rose-400 mt-1.5 flex items-center space-x-1 font-medium animate-fade-in">
+                    <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span>A task with this title already exists. Task names must be unique.</span>
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -646,8 +657,8 @@ export const TasksPage: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={creating}
-                  className="px-5 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-500 text-white font-bold text-xs shadow-glow transition-all flex items-center space-x-1.5"
+                  disabled={creating || isDuplicateTitle || !newTask.title.trim()}
+                  className="px-5 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs shadow-glow transition-all flex items-center space-x-1.5"
                 >
                   {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Create Deliverable</span>}
                 </button>

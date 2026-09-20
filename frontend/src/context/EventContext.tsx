@@ -11,6 +11,10 @@ interface EventContextType {
   events: Event[];
   currentEvent: Event | null;
   setCurrentEvent: (event: Event) => void;
+  selectEvent: (eventOrId: Event | string) => Promise<void>;
+  createEvent: (data: any) => Promise<Event>;
+  isCreateEventOpen: boolean;
+  setCreateEventOpen: (open: boolean) => void;
   healthScore: number;
   isLoading: boolean;
   refreshEvent: () => Promise<void>;
@@ -27,6 +31,41 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [currentEvent, setCurrentEvent] = useState<Event | null>(null);
   const [healthScore, setHealthScore] = useState<number>(82);
   const [isLoading, setIsLoading] = useState(true);
+  const [isCreateEventOpen, setCreateEventOpen] = useState(false);
+
+  const selectEvent = async (eventOrId: Event | string) => {
+    const eventId = typeof eventOrId === 'string' ? eventOrId : eventOrId.id;
+    if (typeof eventOrId !== 'string') {
+      setCurrentEvent(eventOrId);
+    } else {
+      const existing = events.find(e => e.id === eventId);
+      if (existing) {
+        setCurrentEvent(existing);
+      }
+    }
+    try {
+      const fullEvent: any = await api.getEvent(eventId);
+      setCurrentEvent(fullEvent);
+      setHealthScore(fullEvent.healthScore || 82);
+      if (currentClub) {
+        realtimeClient.subscribeEvent(fullEvent.id, currentClub.id);
+      }
+    } catch (err) {
+      console.error('Failed to load full event data:', err);
+    }
+  };
+
+  const createEvent = async (data: any): Promise<Event> => {
+    const clubId = data.clubId || currentClub?.id;
+    if (!clubId) throw new Error('A club is required to create an event');
+    const created: any = await api.createEvent({ ...data, clubId });
+    // Refresh events list for this club
+    const clubEvents: any = await api.getClubEvents(clubId);
+    setEvents(clubEvents);
+    // Switch active workspace to newly created event
+    await selectEvent(created);
+    return created;
+  };
 
   const refreshClubsAndEvents = async () => {
     if (!token) return;
@@ -112,6 +151,10 @@ export const EventProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         events,
         currentEvent,
         setCurrentEvent,
+        selectEvent,
+        createEvent,
+        isCreateEventOpen,
+        setCreateEventOpen,
         healthScore,
         isLoading,
         refreshEvent,
