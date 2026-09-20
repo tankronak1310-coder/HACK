@@ -1,126 +1,94 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { env } from '../../config/env.js';
 
+// Try these models in order until one works
+const MODEL_CANDIDATES = [
+  'gemini-3.6-flash',
+  'gemini-2.0-flash-exp',
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
+  'gemini-1.5-flash-latest',
+  'gemini-pro',
+];
+
 class GeminiService {
   private genAI: GoogleGenerativeAI | null = null;
-  private model: any = null;
+  private workingModel: any = null;
+  private workingModelName = '';
 
-  private getModel() {
-    if (!this.model) {
-      if (!env.GEMINI_API_KEY) {
-        throw new Error('GEMINI_API_KEY is not set in .env');
+  private async getWorkingModel(): Promise<any> {
+    if (this.workingModel) return this.workingModel;
+    if (!env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not set');
+
+    this.genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
+
+    for (const modelName of MODEL_CANDIDATES) {
+      try {
+        const m = this.genAI.getGenerativeModel({ model: modelName });
+        // Quick test
+        await m.generateContent('say ok');
+        this.workingModel = m;
+        this.workingModelName = modelName;
+        console.log(`[Gemini] Using model: ${modelName}`);
+        return m;
+      } catch (e: any) {
+        console.warn(`[Gemini] Model ${modelName} failed: ${e.message?.slice(0, 80)}`);
       }
-      this.genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
-      this.model = this.genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
     }
-    return this.model;
+    throw new Error('No working Gemini model found');
   }
 
-  // ── Scan a document buffer (PDF/image/text) and extract full content + summary ──
-  async scanDocument(
-    buffer: Buffer,
-    mimeType: string,
-    filename: string
-  ): Promise<{ content: string; summary: string }> {
-    const model = this.getModel();
+  // ── Scan a document (PDF/image/text) ──────────────────────────────────────
+  async scanDocument(buffer: Buffer, mimeType: string, filename: string): Promise<{ content: string; summary: string }> {
+    const model = await this.getWorkingModel();
 
-    // For text files, just decode directly
     if (mimeType === 'text/plain') {
       const text = buffer.toString('utf-8');
-      const summary = await this.summarizeText(text, filename);
+      const summary = text.slice(0, 500);
       return { content: text, summary };
     }
 
-    // For PDF and images, send as inline data to Gemini
     const base64Data = buffer.toString('base64');
-    const prompt = `You are a document scanner AI for an event management platform called ClubOps AI.
-
-Analyze the following document thoroughly and extract ALL information. Focus on:
-- Volunteer names, counts, roles, teams, contact info
-- Budget figures, expense items, costs
-- Event details, dates, venues
-- Rules, guidelines, procedures
-- Food/catering details
-- Any structured data (tables, lists)
-
-Document filename: ${filename}
-
-Please provide:
-1. A complete extraction of ALL data from this document
-2. Keep numbers, names, and figures exactly as they appear
-
-Respond with the full extracted text content.`;
+    const prompt = `Extract ALL text and data from this document "${filename}". Include every name, number, date, and fact. Output the complete extracted text.`;
 
     const result = await model.generateContent([
       prompt,
-      {
-        inlineData: {
-          mimeType: mimeType,
-          data: base64Data,
-        },
-      },
+      { inlineData: { mimeType, data: base64Data } },
     ]);
 
     const content = result.response.text();
-
-    // Generate a concise summary
-    const summary = await this.summarizeText(content, filename);
-
+    const summary = content.slice(0, 500);
     return { content, summary };
   }
 
-  // ── Answer a question using document content via Gemini ──
-  async answerFromDocuments(
-    query: string,
-    documents: Array<{ title: string; content: string; summary: string }>
-  ): Promise<{ answer: string; sources: Array<{ title: string; page: number; excerpt: string }> }> {
-    const model = this.getModel();
+  // ── Answer a question from document content ────────────────────────────────
+  async answerFromDocuments(query: string, documents: Array<{ title: string; content: string; summary: string }>): Promise<{ answer: string; sources: any[] }> {
+    const model = await this.getWorkingModel();
 
     const docContext = documents
-      .map((d, i) => `--- Document ${i + 1}: "${d.title}" ---\n${d.content || d.summary}`)
+      .map((d, i) => `--- Document ${i + 1}: "${d.title}" ---\n${(d.content || d.summary || '').slice(0, 8000)}`)
       .join('\n\n');
 
-    const prompt = `You are ClubOps AI Brain, an intelligent assistant for a college event management platform.
+    const prompt = `You are an AI assistant for a college event management platform called ClubOps AI.
 
-You have access to the following documents uploaded by the club:
+The user has uploaded documents. Here is the content:
 
 ${docContext}
 
 User Question: "${query}"
 
-Instructions:
-- Answer the question accurately and specifically using ONLY the information in the documents above
-- If the documents contain specific numbers, names, or data relevant to the question, include them exactly
-- Format your answer clearly with bullet points or numbers where appropriate
-- At the end, cite which document(s) you used
-- If the answer is not in the documents, say so clearly and suggest what to search for
-
-Provide a comprehensive, accurate answer:`;
+Answer the question using ONLY the information in the documents above. Be specific with numbers and names. If the answer isn't in the documents, say so clearly.`;
 
     const result = await model.generateContent(prompt);
     const answer = result.response.text();
 
-    // Build sources from documents that likely contributed
     const sources = documents.slice(0, 3).map(d => ({
       title: d.title,
       page: 1,
-      excerpt: (d.summary || d.content || '').slice(0, 120) + '...',
+      excerpt: (d.content || d.summary || '').slice(0, 120),
     }));
 
     return { answer, sources };
-  }
-
-  // ── Summarize extracted text ──
-  private async summarizeText(text: string, filename: string): Promise<string> {
-    if (!env.GEMINI_API_KEY) return text.slice(0, 300);
-    const model = this.getModel();
-    const prompt = `Summarize this document "${filename}" in 2-3 sentences. Focus on key data like counts, amounts, names:\n\n${text.slice(0, 3000)}`;
-    try {
-      const result = await model.generateContent(prompt);
-      return result.response.text();
-    } catch {
-      return text.slice(0, 300);
-    }
   }
 
   isAvailable(): boolean {

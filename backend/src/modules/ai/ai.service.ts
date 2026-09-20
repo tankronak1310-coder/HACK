@@ -612,169 +612,76 @@ export class AiService {
       include: { chunks: true },
     });
 
-    const lowerQuery = query.toLowerCase();
+    if (documents.length === 0) {
+      return {
+        answer: `No documents uploaded yet. Click **"Upload Document"** to add a PDF — AI will scan and index all content automatically.`,
+        sources: [],
+      };
+    }
 
-    // Extract keywords (strip stopwords)
-    const stopwords = ['how', 'many', 'what', 'is', 'are', 'the', 'a', 'an', 'in', 'of', 'to', 'do', 'does', 'tell', 'me', 'about', 'show', 'give', 'list', 'find', 'can', 'you', 'this', 'my', 'our', 'for', 'and', 'was', 'were', 'pdf', 'document', 'file'];
-    const keywords = lowerQuery
-      .replace(/[^a-z0-9 ]/g, ' ')
-      .split(/\s+/)
-      .filter(w => w.length > 2 && !stopwords.includes(w));
-
-    // Build full content from all documents
-    const docsWithContent = documents.map(d => ({
+    // Build document objects with all available content
+    const docs = documents.map(d => ({
+      id: d.id,
       title: d.title,
-      content: d.content || d.chunks.map(c => c.content).join('\n') || d.summary || '',
+      content: d.content || d.chunks.map((c: any) => c.content).join('\n') || d.summary || '',
       summary: d.summary || '',
-      category: d.category,
     }));
 
-    // ── If documents exist, try Gemini regardless of stored content ─────────
-    if (documents.length > 0 && geminiService.isAvailable()) {
+    // ── Try Gemini first ──────────────────────────────────────────────────────
+    if (geminiService.isAvailable()) {
       try {
-        // Use whatever content we have — even just title+summary
-        const docsToSearch = documents.map(d => ({
-          title: d.title,
-          content: d.content || d.chunks.map((c: any) => c.content).join('\n') || d.summary || d.title,
-          summary: d.summary || d.title,
-        }));
-
-        const result = await geminiService.answerFromDocuments(query, docsToSearch);
+        const result = await geminiService.answerFromDocuments(query, docs);
         return result;
       } catch (e: any) {
-        console.warn('[Brain] Gemini query failed:', e.message);
+        console.warn('[Brain] Gemini failed:', e.message?.slice(0, 100));
       }
     }
 
-    // ── If documents exist and have real content, answer from them ──────────
-    if (docsWithContent.length > 0 && docsWithContent.some(d => d.content.length > 50)) {
+    // ── Fallback: Smart text search ──────────────────────────────────────────
+    const allText = docs.map(d => d.content).join('\n');
+    const lines = allText.split('\n').map(l => l.trim()).filter(l => l.length > 2);
 
-      // If Gemini is available, use it for intelligent answer
-      if (geminiService.isAvailable()) {
-        try {
-          const relevantDocs = docsWithContent.filter(d => d.content.length > 50);
-          const result = await geminiService.answerFromDocuments(query, relevantDocs);
-          return result;
-        } catch (e: any) {
-          console.warn('[Brain] Gemini answer failed, using text search:', e.message);
-        }
-      }
-
-      // ── No Gemini: do smart keyword answer from extracted PDF text ────────
-      const allContent = docsWithContent
-        .filter(d => d.content.length > 50)
-        .map(d => `From "${d.title}":\n${d.content}`)
-        .join('\n\n---\n\n');
-
-      // Count volunteers if asked
-      const isVolunteerQuery = keywords.some(k =>
-        ['volunteer', 'volunteers', 'volunter', 'voluntuer', 'member', 'members', 'roster', 'staff', 'person', 'people', 'count', 'total', 'number', 'name'].includes(k)
-      );
-
-      if (isVolunteerQuery) {
-        // Try to extract volunteer-like names/counts from PDF text
-        const lines = allContent.split('\n').filter(l => l.trim().length > 0);
-
-        // Find lines that look like names or volunteer entries
-        const namePattern = /^[A-Z][a-z]+ [A-Z][a-z]+/;
-        const numberPattern = /\b(\d+)\s*(volunteer|member|person|people|staff|participant)/i;
-
-        const nameLikes = lines.filter(l => namePattern.test(l.trim())).slice(0, 30);
-        const numberMatch = allContent.match(numberPattern);
-
-        let answer = `📄 **Analysis of uploaded document(s) for "${query}":**\n\n`;
-
-        if (numberMatch) {
-          answer += `🔢 **Found reference:** "${numberMatch[0]}"\n\n`;
-        }
-
-        if (nameLikes.length > 0) {
-          answer += `👥 **Possible volunteer entries found (${nameLikes.length}):**\n` +
-            nameLikes.map(n => `• ${n.trim()}`).join('\n') + '\n\n';
-        }
-
-        // Show relevant raw content
-        const relevantLines = lines
-          .filter(l =>
-            keywords.some(k => l.toLowerCase().includes(k)) ||
-            l.match(/\d+/) ||
-            namePattern.test(l.trim())
-          )
-          .slice(0, 20);
-
-        if (relevantLines.length > 0) {
-          answer += `📋 **Relevant content from documents:**\n` +
-            relevantLines.map(l => `> ${l.trim()}`).join('\n');
-        } else {
-          answer += `📋 **Document content preview:**\n` +
-            lines.slice(0, 15).map(l => `> ${l.trim()}`).join('\n');
-        }
-
-        answer += `\n\n💡 *To get smarter AI answers, add a Gemini API key to \`backend/.env\`*`;
-
-        return {
-          answer,
-          sources: docsWithContent.slice(0, 3).map(d => ({
-            title: d.title,
-            page: 1,
-            excerpt: d.content.slice(0, 120),
-          })),
-        };
-      }
-
-      // General keyword search in content
-      const relevantLines = allContent
-        .split('\n')
-        .filter(l => keywords.some(k => l.toLowerCase().includes(k)))
-        .slice(0, 20);
-
-      if (relevantLines.length > 0) {
-        return {
-          answer: `📄 **Found in documents for "${query}":**\n\n` +
-            relevantLines.map(l => `> ${l.trim()}`).join('\n') +
-            `\n\n💡 *Add Gemini API key for smarter AI answers*`,
-          sources: docsWithContent.slice(0, 3).map(d => ({
-            title: d.title,
-            page: 1,
-            excerpt: d.content.slice(0, 120),
-          })),
-        };
-      }
-
-      // Show document preview
+    if (lines.length === 0) {
       return {
-        answer: `📄 **Document content (no exact match for "${query}"):**\n\n` +
-          docsWithContent
-            .filter(d => d.content.length > 50)
-            .slice(0, 2)
-            .map(d => `**${d.title}:**\n${d.content.slice(0, 400)}...`)
-            .join('\n\n') +
-          `\n\n💡 *Add Gemini API key to \`backend/.env\` for intelligent Q&A*`,
+        answer: `⚠️ The documents were uploaded but no text could be extracted.\n\n` +
+          `**Please delete the existing document and re-upload your PDF** — it will now be properly scanned.\n\n` +
+          `Documents: ${docs.map(d => d.title).join(', ')}`,
         sources: [],
       };
     }
 
-    // ── No documents with real content ─────────────────────────────────────
-    if (documents.length > 0) {
-      if (geminiService.isAvailable()) {
-        return {
-          answer: `⚠️ Could not analyse documents with Gemini. Please **delete and re-upload** your PDF so Gemini can scan it fresh.\n\n**Documents found:** ${documents.map(d => d.title).join(', ')}`,
-          sources: [],
-        };
-      }
-      return {
-        answer: `⚠️ The uploaded document(s) could not be read (possibly a scanned image PDF).\n\n` +
-          `**Documents found:** ${documents.map(d => d.title).join(', ')}\n\n` +
-          `**To fix this:**\n` +
-          `• Delete these documents and re-upload your PDF\n` +
-          `• Or upload a text-based PDF (not a scanned image)`,
-        sources: [],
-      };
+    const q = query.toLowerCase();
+    const stopwords = new Set(['how', 'many', 'what', 'is', 'are', 'the', 'a', 'an', 'in', 'of', 'to', 'do', 'does', 'tell', 'me', 'about', 'show', 'give', 'can', 'this', 'my', 'our', 'for', 'and', 'was', 'were']);
+    const keywords = q.replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(w => w.length > 2 && !stopwords.has(w));
+
+    const matchingLines = lines.filter(l => keywords.some(k => l.toLowerCase().includes(k)));
+
+    // Number pattern extraction
+    const numMatches = allText.match(/\b\d+\b[\s\S]{0,30}?(volunteer|member|person|people|staff|participant|name|total|count)/gi) || [];
+    const namePattern = /\b[A-Z][a-z]{2,}\s+[A-Z][a-z]{2,}\b/g;
+    const names = [...new Set(allText.match(namePattern) || [])];
+
+    let answer = `📄 **Answer from "${docs.map(d => d.title).join(', ')}":**\n\n`;
+
+    if (numMatches.length > 0) {
+      answer += `🔢 **Numbers found:**\n${numMatches.slice(0, 5).map(m => `• ${m.trim()}`).join('\n')}\n\n`;
+    }
+    if (names.length > 0 && keywords.some(k => ['volunteer', 'member', 'name', 'person', 'staff', 'roster'].includes(k))) {
+      answer += `👥 **Names found (${names.length}):**\n${names.slice(0, 20).map(n => `• ${n}`).join('\n')}\n\n`;
+    }
+    if (matchingLines.length > 0) {
+      answer += `📋 **Relevant lines:**\n${matchingLines.slice(0, 15).map(l => `> ${l}`).join('\n')}`;
+    } else {
+      answer += `📋 **Document preview:**\n${lines.slice(0, 20).map(l => `> ${l}`).join('\n')}`;
     }
 
     return {
-      answer: `No documents uploaded yet. Click **"Upload Document"** to add a PDF — the system will extract its content and you can ask questions about it.`,
-      sources: [],
+      answer,
+      sources: docs.slice(0, 3).map(d => ({
+        title: d.title,
+        page: 1,
+        excerpt: d.content.slice(0, 120),
+      })),
     };
   }
 }
