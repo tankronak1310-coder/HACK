@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   X, 
   Bot, 
@@ -12,6 +12,17 @@ import { useEvent } from '../../context/EventContext.js';
 import { ProposedAction } from '../../types/index.js';
 import { api } from '../../services/api.js';
 import { ActionConfirmationModal } from '../common/ActionConfirmationModal.js';
+
+// Strip markdown formatting for clean display
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/`{1,3}(.*?)`{1,3}/g, '$1')
+    .replace(/#{1,6}\s+/g, '')
+    .replace(/^\s*[-*+]\s/gm, '• ')
+    .trim();
+}
 
 interface CopilotDrawerProps {
   isOpen: boolean;
@@ -33,19 +44,26 @@ export const CopilotDrawer: React.FC<CopilotDrawerProps> = ({ isOpen, onClose })
   const [selectedAction, setSelectedAction] = useState<ProposedAction | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'm1',
       sender: 'assistant',
-      content: `👋 Hello! I am **ClubOps Chatbot**, your assistant for this entire website and event operations.\n\n` +
-        `You can ask me **anything**:\n` +
-        `• 🌐 **About Website**: How to create tasks, add volunteers, log risks, calculate health score, or use announcements.\n` +
-        `• 📋 **Live Operations**: Ask about today's priorities, overdue deliverables, team workload, or risks.\n\n` +
-        `What can I help you with today?`,
+      content: stripMarkdown(
+        `Hello! I am ClubOps Chatbot, your intelligent event operations assistant.\n\n` +
+        `You can ask me anything:\n` +
+        `• About this website: how to create tasks, add volunteers, log risks\n` +
+        `• Live operations: today's priorities, overdue deliverables, team workload, risks\n\n` +
+        `What can I help you with today?`
+      ),
       timestamp: 'Just now',
     },
   ]);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom whenever messages update or loading changes
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, loading]);
 
   if (!isOpen) return null;
 
@@ -80,7 +98,7 @@ export const CopilotDrawer: React.FC<CopilotDrawerProps> = ({ isOpen, onClose })
       const aiMsg: ChatMessage = {
         id: `a_${Date.now()}`,
         sender: 'assistant',
-        content: res.content,
+        content: stripMarkdown(res.content),
         proposedActions: res.proposedActions,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
@@ -262,6 +280,7 @@ export const CopilotDrawer: React.FC<CopilotDrawerProps> = ({ isOpen, onClose })
                 </div>
               </div>
             )}
+            <div ref={messagesEndRef} />
           </div>
 
           {/* ── Suggestion Chips ── */}

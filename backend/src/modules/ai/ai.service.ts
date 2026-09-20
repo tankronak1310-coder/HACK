@@ -24,7 +24,7 @@ function taskLine(t: any, now: Date) {
     ? `⚠️ ${Math.abs(daysLeft)}d overdue`
     : daysLeft === 0 ? '⏰ Due today'
     : `📅 Due in ${daysLeft}d`;
-  return `• **${t.title}** [${t.status}] — ${t.priority} priority — ${dueStr}${t.team ? ` (${t.team.name})` : ''}`;
+  return `• ${t.title} [${t.status}] — ${t.priority} priority — ${dueStr}${t.team ? ` (${t.team.name})` : ''}`;
 }
 
 export class AiService {
@@ -421,6 +421,22 @@ export class AiService {
         });
       } catch {
         // Non-blocking
+      }
+    }
+
+    // ── Gemini enhancement for unrecognised queries ────────────────────────
+    if (geminiService.isAvailable() && content.includes('Tell me what you\'d like to know')) {
+      try {
+        const context = event
+          ? `Event: ${event.name}, Health: ${event.healthScore}/100, Tasks: ${allTasks.length} (${doneTasks.length} done), Risks: ${activeRisks.length} active, Volunteers: ${volunteers.length}`
+          : 'No active event';
+        const docs = [{ title: 'Live Event Data', content: context, summary: context }];
+        const geminiRes = await geminiService.answerFromDocuments(query, docs);
+        if (geminiRes.answer && geminiRes.answer.length > 20) {
+          content = geminiRes.answer;
+        }
+      } catch (e: any) {
+        // keep original content
       }
     }
 
