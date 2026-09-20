@@ -216,6 +216,33 @@ export class MeetingsService {
 
     return fallbackList;
   }
+
+  async updateMeeting(meetingId: string, data: {
+    title?: string;
+    location?: string;
+    transcript?: string;
+    summary?: string;
+    date?: string | Date;
+  }) {
+    const updateData: any = {};
+    if (data.title !== undefined) updateData.title = data.title;
+    if (data.location !== undefined) updateData.location = data.location;
+    if (data.transcript !== undefined) updateData.transcript = data.transcript;
+    if (data.summary !== undefined) updateData.summary = data.summary;
+    if (data.date !== undefined) updateData.date = new Date(data.date);
+
+    return await prisma.meeting.update({
+      where: { id: meetingId },
+      data: updateData,
+      include: { actionItems: true },
+    });
+  }
+
+  async deleteMeeting(meetingId: string) {
+    return await prisma.meeting.delete({
+      where: { id: meetingId },
+    });
+  }
 }
 
 export const meetingsService = new MeetingsService();

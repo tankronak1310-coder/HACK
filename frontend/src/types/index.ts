@@ -53,7 +53,7 @@ export interface Event {
   risks?: Risk[];
   meetings?: Meeting[];
   announcements?: Announcement[];
-  _count?: { tasks: number; risks: number; meetings: number; documents: number };
+  _count?: { tasks: number; risks: number; meetings: number; documents?: number; volunteers?: number };
 }
 
 export interface Task {
@@ -149,7 +149,7 @@ export interface Announcement {
   id: string;
   eventId: string;
   title: string;
-  channel: 'WHATSAPP' | 'EMAIL' | 'NOTICE' | 'INSTAGRAM';
+  channel: 'WHATSAPP' | 'EMAIL';
   content: string;
   targetAudience: string;
   status: 'DRAFT' | 'SENT' | 'SCHEDULED';

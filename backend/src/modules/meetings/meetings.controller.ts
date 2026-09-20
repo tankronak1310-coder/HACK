@@ -61,6 +61,26 @@ export class MeetingsController {
       return res.status(400).json({ error: err.message });
     }
   }
+
+  async updateMeeting(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const updated = await meetingsService.updateMeeting(id, req.body);
+      return res.json(updated);
+    } catch (err: any) {
+      return res.status(400).json({ error: err.message });
+    }
+  }
+
+  async deleteMeeting(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      await meetingsService.deleteMeeting(id);
+      return res.json({ success: true, message: 'Meeting deleted successfully.', deletedId: id });
+    } catch (err: any) {
+      return res.status(400).json({ error: err.message });
+    }
+  }
 }
 
 export const meetingsController = new MeetingsController();

@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext.js';
 import { EventProvider } from './context/EventContext.js';
-import { ThemeProvider, useTheme } from './context/ThemeContext.js';
 
 // Layout
 import { Navbar } from './components/layout/Navbar.js';
@@ -11,6 +10,7 @@ import { BottomNav } from './components/layout/BottomNav.js';
 import { CommandPalette } from './components/common/CommandPalette.js';
 import { NotificationDrawer } from './components/common/NotificationDrawer.js';
 import { CopilotDrawer } from './components/copilot/CopilotDrawer.js';
+import { CreateEventModal } from './components/common/CreateEventModal.js';
 
 // Pages
 import { LandingPage } from './pages/LandingPage.js';
@@ -32,10 +32,9 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [copilotOpen, setCopilotOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(2);
-  const { theme } = useTheme();
 
   return (
-    <div className={`min-h-screen flex flex-col`} style={{ backgroundColor: 'var(--bg-base)' }}>
+    <div className="min-h-screen bg-background flex flex-col">
       <Navbar
         onOpenCommandPalette={() => setCommandPaletteOpen(true)}
         onOpenNotifications={() => setNotificationOpen(true)}
@@ -64,17 +63,17 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         isOpen={copilotOpen}
         onClose={() => setCopilotOpen(false)}
       />
+      <CreateEventModal />
     </div>
   );
 };
 
 export const App: React.FC = () => {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <EventProvider>
-          <BrowserRouter>
-            <Routes>
+    <AuthProvider>
+      <EventProvider>
+        <BrowserRouter>
+          <Routes>
             {/* Public Routes */}
             <Route path="/" element={<LandingPage />} />
             <Route path="/auth" element={<AuthPage />} />
@@ -175,7 +174,6 @@ export const App: React.FC = () => {
         </BrowserRouter>
       </EventProvider>
     </AuthProvider>
-    </ThemeProvider>
   );
 };
 

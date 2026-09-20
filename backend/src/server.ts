@@ -21,6 +21,7 @@ import announcementsRoutes from './modules/announcements/announcements.routes.js
 import notificationsRoutes from './modules/notifications/notifications.routes.js';
 import analyticsRoutes from './modules/analytics/analytics.routes.js';
 import adminRoutes from './modules/admin/admin.routes.js';
+import whatsappRoutes from './modules/whatsapp/whatsapp.routes.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -41,8 +42,9 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.get('/', async (_req, res) => {
   let dbStatus = 'disconnected';
   let stats: any = {};
+  let eventRosters: any[] = [];
   try {
-    const [tasks, volunteers, risks, events, clubs, users, meetings, documents] = await Promise.all([
+    const [tasks, volunteers, risks, events, clubs, users, meetings, documents, rosters] = await Promise.all([
       prisma.task.count(),
       prisma.volunteer.count(),
       prisma.risk.count(),
@@ -51,9 +53,22 @@ app.get('/', async (_req, res) => {
       prisma.user.count(),
       prisma.meeting.count(),
       prisma.document.count(),
+      prisma.event.findMany({
+        orderBy: { createdAt: 'desc' },
+        include: {
+          club: { select: { id: true, name: true } },
+          volunteers: {
+            include: {
+              team: { select: { id: true, name: true } },
+            },
+            orderBy: [{ rating: 'desc' }, { name: 'asc' }],
+          },
+        },
+      }),
     ]);
     dbStatus = 'connected';
     stats = { tasks, volunteers, risks, events, clubs, users, meetings, documents };
+    eventRosters = rosters;
   } catch {
     dbStatus = 'error';
   }
@@ -63,11 +78,68 @@ app.get('/', async (_req, res) => {
     stats,
     dbStatus,
     Math.floor(process.uptime()),
-    { rssMb: Math.round(memoryUsage.rss / 1024 / 1024) }
+    { rssMb: Math.round(memoryUsage.rss / 1024 / 1024) },
+    eventRosters
   );
 
   res.setHeader('Content-Type', 'text/html');
   return res.send(html);
+});
+
+// Dedicated Event-Volunteer Specification API Endpoint
+app.get('/api/volunteers/specification', async (_req, res) => {
+  try {
+    const events = await prisma.event.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        club: { select: { id: true, name: true } },
+        volunteers: {
+          include: {
+            team: { select: { id: true, name: true } },
+          },
+          orderBy: [{ rating: 'desc' }, { name: 'asc' }],
+        },
+      },
+    });
+
+    const specification = events.map(e => ({
+      eventId: e.id,
+      eventName: e.name,
+      eventType: e.type,
+      eventStatus: e.status,
+      club: { id: e.club.id, name: e.club.name },
+      totalVolunteers: e.volunteers.length,
+      volunteers: e.volunteers.map(v => {
+        let parsedSkills: string[] = [];
+        try {
+          const s = JSON.parse(v.skills || '[]');
+          parsedSkills = Array.isArray(s) ? s : [String(s)];
+        } catch {
+          parsedSkills = v.skills ? v.skills.split(',').map((s: string) => s.trim()) : [];
+        }
+        return {
+          id: v.id,
+          name: v.name,
+          email: v.email,
+          phone: v.phone || 'N/A',
+          department: v.team?.name || 'General Operations',
+          skills: parsedSkills,
+          availability: v.availability,
+          workload: v.currentWorkload,
+          assignedHours: v.assignedHours,
+          rating: v.rating,
+        };
+      }),
+    }));
+
+    return res.json({
+      success: true,
+      totalEvents: specification.length,
+      specification,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 // Observability Endpoints
@@ -120,6 +192,7 @@ app.use('/api/announcements', announcementsRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/admin/db', adminRoutes);
+app.use('/api/whatsapp', whatsappRoutes);
 
 // Global Error Handler
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

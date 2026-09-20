@@ -56,8 +56,8 @@ export const api = {
   // Volunteers
   getVolunteers: (clubId: string, eventId?: string, teamId?: string) => {
     const params = new URLSearchParams({ clubId });
-    if (eventId) params.set('eventId', eventId);
-    if (teamId) params.set('teamId', teamId);
+    if (eventId && eventId !== 'undefined' && eventId !== 'null') params.set('eventId', eventId);
+    if (teamId && teamId !== 'undefined' && teamId !== 'null') params.set('teamId', teamId);
     return request(`/volunteers?${params}`);
   },
   createVolunteer: (data: any) => request('/volunteers', { method: 'POST', body: JSON.stringify(data) }),
@@ -99,6 +99,8 @@ export const api = {
   // Announcements
   getAnnouncements: (eventId: string) => request(`/announcements?eventId=${eventId}`),
   createAnnouncement: (data: any) => request('/announcements', { method: 'POST', body: JSON.stringify(data) }),
+  updateAnnouncement: (id: string, data: any) => request(`/announcements/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteAnnouncement: (id: string) => request(`/announcements/${id}`, { method: 'DELETE' }),
 
   // Notifications
   getNotifications: () => request('/notifications'),
@@ -108,4 +110,11 @@ export const api = {
   // Analytics
   getAnalytics: (eventId: string) => request(`/analytics/${eventId}`),
   getPostEventReport: (eventId: string) => request(`/analytics/${eventId}/report`),
+
+  // Automated WhatsApp Dispatch (No App Needed)
+  getWhatsAppStatus: () => request('/whatsapp/status'),
+  connectWhatsApp: () => request('/whatsapp/connect', { method: 'POST' }),
+  disconnectWhatsApp: () => request('/whatsapp/disconnect', { method: 'POST' }),
+  sendWhatsAppDirect: (data: { phone: string; message: string }) => request('/whatsapp/send-direct', { method: 'POST', body: JSON.stringify(data) }),
+  sendWhatsAppBroadcast: (data: { eventId?: string; phoneNumbers?: string[]; message: string; title?: string }) => request('/whatsapp/send-broadcast', { method: 'POST', body: JSON.stringify(data) }),
 };

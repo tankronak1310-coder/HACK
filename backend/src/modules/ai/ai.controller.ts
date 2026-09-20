@@ -48,7 +48,7 @@ export class AiController {
 
   async announcement(req: Request, res: Response) {
     try {
-      const { eventId, channel, topic, targetAudience } = req.body;
+      const { eventId, channel, topic, targetAudience, tone, additionalNotes } = req.body;
       if (!eventId || !channel || !topic) {
         return res.status(400).json({ error: 'eventId, channel, and topic are required' });
       }
@@ -58,6 +58,8 @@ export class AiController {
         channel,
         topic,
         targetAudience: targetAudience || 'ALL',
+        tone,
+        additionalNotes,
       });
 
       return res.json(result);

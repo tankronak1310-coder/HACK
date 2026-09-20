@@ -52,10 +52,24 @@ export class TasksService {
     riskLevel?: string;
     tags?: string[];
   }) {
+    const trimmedTitle = data.title.trim();
+    const existingTasks = await prisma.task.findMany({
+      where: { eventId },
+      select: { id: true, title: true }
+    });
+
+    const duplicate = existingTasks.find(
+      t => t.title.trim().toLowerCase() === trimmedTitle.toLowerCase()
+    );
+
+    if (duplicate) {
+      throw new Error(`A task with the name "${trimmedTitle}" already exists.`);
+    }
+
     const task = await prisma.task.create({
       data: {
         eventId,
-        title: data.title,
+        title: trimmedTitle,
         description: data.description,
         teamId: data.teamId || null,
         assigneeId: data.assigneeId || null,
@@ -97,6 +111,24 @@ export class TasksService {
     if (!existing) throw new Error('Task not found');
 
     const updateData: any = { ...data };
+
+    if (data.title) {
+      const trimmedTitle = data.title.trim();
+      const existingTasks = await prisma.task.findMany({
+        where: { eventId: existing.eventId },
+        select: { id: true, title: true }
+      });
+
+      const duplicate = existingTasks.find(
+        t => t.id !== taskId && t.title.trim().toLowerCase() === trimmedTitle.toLowerCase()
+      );
+
+      if (duplicate) {
+        throw new Error(`A task with the name "${trimmedTitle}" already exists.`);
+      }
+      updateData.title = trimmedTitle;
+    }
+
     if (data.deadline) updateData.deadline = new Date(data.deadline);
     if (data.tags) updateData.tags = JSON.stringify(data.tags);
     if (data.status === 'DONE' && existing.status !== 'DONE') {

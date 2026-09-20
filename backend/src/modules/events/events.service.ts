@@ -64,7 +64,7 @@ export class EventsService {
           take: 5,
         },
         _count: {
-          select: { tasks: true, risks: true, meetings: true, documents: true },
+          select: { tasks: true, risks: true, meetings: true, documents: true, volunteers: true },
         },
       },
     });
@@ -81,7 +81,7 @@ export class EventsService {
       orderBy: { date: 'desc' },
       include: {
         _count: {
-          select: { tasks: true, risks: true, meetings: true },
+          select: { tasks: true, risks: true, meetings: true, volunteers: true },
         },
       },
     });
@@ -89,16 +89,36 @@ export class EventsService {
 
   async updateEvent(eventId: string, data: Partial<{
     name: string;
+    type: string;
     status: string;
     location: string;
     budget: number;
     healthScore: number;
     currentMilestone: string;
     description: string;
+    date: string | Date;
+    endDate: string | Date;
   }>) {
+    const updateData: any = { ...data };
+    if (data.date) updateData.date = new Date(data.date);
+    if (data.endDate) updateData.endDate = new Date(data.endDate);
+
     return await prisma.event.update({
       where: { id: eventId },
-      data,
+      data: updateData,
+    });
+  }
+
+  async deleteEvent(eventId: string) {
+    return await prisma.$transaction(async (tx) => {
+      // 1. Delete or unlink event documents
+      await tx.document.deleteMany({ where: { eventId } });
+      // 2. Delete event activity logs
+      await tx.activityLog.deleteMany({ where: { eventId } });
+      // 3. Delete event volunteers
+      await tx.volunteer.deleteMany({ where: { eventId } });
+      // 4. Delete event (cascades tasks, risks, meetings, announcements, aiActions, metrics)
+      return await tx.event.delete({ where: { id: eventId } });
     });
   }
 

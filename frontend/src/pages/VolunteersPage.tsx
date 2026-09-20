@@ -13,7 +13,8 @@ import {
   Briefcase,
   Edit2,
   Trash2,
-  UserMinus
+  UserMinus,
+  MessageSquare
 } from 'lucide-react';
 import { useEvent } from '../context/EventContext.js';
 import { Volunteer } from '../types/index.js';
@@ -44,22 +45,47 @@ export const VolunteersPage: React.FC = () => {
     experienceYears: '',
   });
 
+  const [loadingVolunteers, setLoadingVolunteers] = useState(false);
+
   const loadVolunteers = async () => {
-    if (!currentClub?.id) return;
+    if (!currentClub?.id || !currentEvent?.id) {
+      setVolunteers([]);
+      return;
+    }
+    setLoadingVolunteers(true);
     try {
-      const data: any = await api.getVolunteers(currentClub.id, currentEvent?.id);
+      const data: any = await api.getVolunteers(currentClub.id, currentEvent.id);
       setVolunteers(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Failed to load volunteers:', err);
+      setVolunteers([]);
+    } finally {
+      setLoadingVolunteers(false);
     }
   };
 
   useEffect(() => {
+    // Immediately reset to 0 volunteers and clear matches when switching events
+    setVolunteers([]);
+    setSelectedTaskForMatch('');
+    setMatchedResults([]);
     loadVolunteers();
   }, [currentClub?.id, currentEvent?.id]);
 
   const tasks = currentEvent?.tasks || [];
-  const teams = currentClub?.teams || [];
+  // Load teams for the currently selected event's club (re-fetches when event changes)
+  const [eventTeams, setEventTeams] = useState<{ id: string; name: string; color: string }[]>([]);
+
+  useEffect(() => {
+    // When event changes, reload teams specific to that event's club
+    if (currentClub?.teams && currentClub.teams.length > 0) {
+      setEventTeams(currentClub.teams);
+    } else {
+      setEventTeams([]);
+    }
+    // Reset teamId if the currently selected team doesn't exist in new event's club
+    setFormData(prev => ({ ...prev, teamId: '' }));
+  }, [currentEvent?.id, currentClub?.id, currentClub?.teams]);
 
   const handleMatchForTask = async (taskId: string) => {
     setSelectedTaskForMatch(taskId);
@@ -187,6 +213,10 @@ export const VolunteersPage: React.FC = () => {
       setFormError('Please select or create a club first.');
       return;
     }
+    if (!currentEvent?.id) {
+      setFormError('Please select or create an event before adding volunteers.');
+      return;
+    }
     if (!formData.name.trim() || !formData.email.trim()) {
       setFormError('Name and Email are required.');
       return;
@@ -273,15 +303,18 @@ export const VolunteersPage: React.FC = () => {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border">
         <div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 flex-wrap gap-y-1">
             <span className="live-pulse" />
             <h1 className="text-xl font-bold text-white flex items-center space-x-2">
               <Users className="w-5 h-5 text-primary-400" />
               <span>Smart Volunteer Matching & Directory</span>
             </h1>
+            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-primary-500/20 text-primary-300 font-mono border border-primary-500/30">
+              EVENT: {currentEvent?.name?.toUpperCase() || 'NO EVENT SELECTED'}
+            </span>
           </div>
           <p className="text-xs text-slate-400 mt-0.5">
-            AI evaluated skill rankings, availability status, and workload balancing across club operations.
+            Event-scoped volunteer directory, skill rankings, availability status, and workload balancing.
           </p>
         </div>
 
@@ -470,9 +503,11 @@ export const VolunteersPage: React.FC = () => {
             <Users className="w-7 h-7" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-white">No Volunteers Registered Yet</h3>
+            <h3 className="text-base font-bold text-white">
+              No Volunteers in {currentEvent?.name || 'this event'}
+            </h3>
             <p className="text-xs text-slate-400 max-w-md mx-auto mt-1">
-              Add your committee members and student volunteers to enable AI skill matching, workload distribution, and task assignment.
+              Each event maintains its own independent volunteer roster. Click "+ Add First Volunteer" to register volunteers specifically for {currentEvent?.name || 'this event'}.
             </p>
           </div>
           <button
@@ -513,6 +548,17 @@ export const VolunteersPage: React.FC = () => {
                       <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${getWorkloadBadge(vol.currentWorkload)}`}>
                         {vol.currentWorkload}
                       </span>
+                      {vol.phone && (
+                        <a
+                          href={`https://api.whatsapp.com/send?phone=${vol.phone.replace(/[^0-9]/g, '')}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          title={`Send WhatsApp message to ${vol.name}`}
+                          className="p-1.5 rounded-lg text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 transition-colors"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" />
+                        </a>
+                      )}
                       <button
                         onClick={() => handleOpenEdit(vol)}
                         title="Edit volunteer"
@@ -673,19 +719,31 @@ export const VolunteersPage: React.FC = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Team / Department</label>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Team / Department
+                    {currentEvent && (
+                      <span className="ml-1 font-normal text-primary-400">
+                        ({currentEvent.name})
+                      </span>
+                    )}
+                  </label>
                   <select
                     value={formData.teamId}
                     onChange={(e) => setFormData({ ...formData, teamId: e.target.value })}
                     className="w-full bg-background-subtle border border-border focus:border-primary-500 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none"
                   >
                     <option value="">-- General Operations --</option>
-                    {teams.map((t) => (
+                    {eventTeams.map((t) => (
                       <option key={t.id} value={t.id}>
                         {t.name}
                       </option>
                     ))}
                   </select>
+                  {eventTeams.length === 0 && (
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      No teams set up for this club yet. Create teams in Club Settings.
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">Experience (Years)</label>
